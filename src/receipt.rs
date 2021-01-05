@@ -144,4 +144,14 @@ mod receipt {
         assert_eq!(testit.document.receipt.items[0].sum, 5549);
         assert_eq!(testit.document.receipt.items[1].sum, 20599);
     }
+
+    #[test]
+    fn display() {
+        let it = Item {
+            name: "test".to_string(),
+            sum: 1000,
+        };
+        let line = format!("{}", it.to_string());
+        assert_eq!(line, "test:1000");
+    }
 }
