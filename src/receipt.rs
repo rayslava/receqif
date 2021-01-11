@@ -17,11 +17,21 @@ impl fmt::Display for Item {
 #[allow(dead_code)]
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
-struct Receipt {
+pub struct Receipt {
     totalSum: i64,
     #[serde(with = "custom_date_format")]
     dateTime: Date<Utc>,
-    items: Vec<Item>,
+    pub items: Vec<Item>,
+}
+
+impl Receipt {
+    pub fn total_sum(self) -> i64 {
+        self.totalSum
+    }
+
+    pub fn date(&self) -> Date<Utc> {
+        self.dateTime
+    }
 }
 
 mod custom_date_format {
@@ -59,9 +69,9 @@ struct Input {
     document: Document,
 }
 
-pub fn parse_receipt(line: &str) -> Vec<Item> {
+pub fn parse_receipt(line: &str) -> Receipt {
     let result: Input = serde_json::from_str(&line).unwrap();
-    result.document.receipt.items
+    result.document.receipt
 }
 
 #[cfg(test)]
