@@ -1,7 +1,8 @@
+use chrono::{Date, Utc};
 use serde::Deserialize;
 use std::fmt;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Item {
     pub name: String,
     pub sum: i64,
@@ -15,10 +16,35 @@ impl fmt::Display for Item {
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Receipt {
     totalSum: i64,
+    #[serde(with = "custom_date_format")]
+    dateTime: Date<Utc>,
     items: Vec<Item>,
+}
+
+mod custom_date_format {
+    use chrono::{Date, TimeZone, Utc};
+    use serde::{self, Deserialize, Deserializer};
+
+    /// The format seems alike to RFC3339 but is not compliant
+    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
+
+    /// Custom deserializer for format in our json
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Date<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let dt = Utc
+            .datetime_from_str(&s, FORMAT)
+            .map_err(serde::de::Error::custom);
+        match dt {
+            Ok(date) => Ok(date.date()),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -41,6 +67,7 @@ pub fn parse_receipt(line: &str) -> Vec<Item> {
 #[cfg(test)]
 mod receipt {
     use super::*;
+    use chrono::Datelike;
 
     #[test]
     fn item() {
@@ -90,7 +117,8 @@ mod receipt {
 	    "name" : "СОУС ОСТР.380Г КИНТО",
 	    "sum" : 20599
         }
-    ]
+    ],
+    "dateTime" : "2020-06-19T17:12:00"
 }
 "#,
         );
@@ -100,6 +128,9 @@ mod receipt {
         assert_eq!(testit.items.len(), 2);
         assert_eq!(testit.items[0].sum, 5549);
         assert_eq!(testit.items[1].sum, 20599);
+        assert_eq!(testit.dateTime.day(), 19);
+        assert_eq!(testit.dateTime.month(), 6);
+        assert_eq!(testit.dateTime.year(), 2020);
     }
 
     #[test]
@@ -131,7 +162,8 @@ mod receipt {
           "name" : "СОУС ОСТР.380Г КИНТО",
           "sum" : 20599
         }
-      ]
+      ],
+    "dateTime" : "2020-06-19T17:12:00"
     }
   }
 }
@@ -143,6 +175,9 @@ mod receipt {
         assert_eq!(testit.document.receipt.items.len(), 2);
         assert_eq!(testit.document.receipt.items[0].sum, 5549);
         assert_eq!(testit.document.receipt.items[1].sum, 20599);
+        assert_eq!(testit.document.receipt.dateTime.day(), 19);
+        assert_eq!(testit.document.receipt.dateTime.month(), 6);
+        assert_eq!(testit.document.receipt.dateTime.year(), 2020);
     }
 
     #[test]
