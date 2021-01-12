@@ -7,7 +7,6 @@ use qif_generator::{
 use std::env;
 use std::fs;
 
-mod qif;
 mod receipt;
 
 fn read_receipt(f: &str) -> receipt::Receipt {
@@ -35,10 +34,7 @@ mod tests {
 fn gen_splits(items: &[receipt::Item]) -> Vec<Split> {
     let mut result: Vec<Split> = Vec::new();
     for i in items.iter() {
-        let t = Split::new()
-            .memo(i.name.as_str())
-            .amount(qif::price_convert(i.sum))
-            .build();
+        let t = Split::new().memo(i.name.as_str()).amount(i.sum).build();
 
         result.push(t);
     }
@@ -59,7 +55,7 @@ fn gen_trans<'a>(
 
     match t {
         Ok(t) => {
-            if (t.sum() - qif::price_convert(sum)).abs() < 0.005 {
+            if t.sum() == sum {
                 Ok(t)
             } else {
                 Err(format!(
