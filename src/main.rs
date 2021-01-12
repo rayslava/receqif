@@ -50,7 +50,7 @@ fn gen_trans<'a>(
     let t = Transaction::new(acc)
         .date(date)
         .memo("New")
-        .with_splits(splits)
+        .splits(splits)
         .build();
 
     match t {
@@ -60,7 +60,7 @@ fn gen_trans<'a>(
             } else {
                 Err(format!(
                     "Total sum is wrong. Expected: {} Got: {}",
-                    qif::price_convert(sum),
+                    sum,
                     t.sum()
                 ))
             }
