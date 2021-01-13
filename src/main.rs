@@ -6,7 +6,9 @@ use qif_generator::{
 };
 use std::env;
 use std::fs;
+use structopt::StructOpt;
 
+mod import;
 mod receipt;
 
 fn read_receipt(f: &str) -> receipt::Receipt {
@@ -69,11 +71,36 @@ fn gen_trans<'a>(
     }
 }
 
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(StructOpt)]
+struct Cli {
+    /// The path to the file to read
+    filename: String,
+
+    #[structopt(parse(from_os_str), long, help = "Accounts csv file")]
+    accounts: Option<std::path::PathBuf>,
+
+    #[structopt(
+        parse(from_os_str),
+        short,
+        long,
+        default_value = "~/.config/receqif/rc.db"
+    )]
+    database: Option<std::path::PathBuf>,
+}
+
 #[cfg(not(tarpaulin_include))]
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let filename = &args[1];
-    let receipt = read_receipt(filename);
+    let args = Cli::from_args();
+    match args.accounts {
+        Some(filename) => {
+            let accounts = import::read_accounts(std::path::Path::new(&filename)).unwrap();
+            println!("{:?}", accounts);
+        }
+        None => {}
+    }
+
+    let receipt = read_receipt(&args.filename);
     let splits = gen_splits(&receipt.items);
     let acc = Account::new()
         .name("Wallet")
