@@ -1,11 +1,14 @@
 use chrono::{Date, Utc};
+use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
 use qif_generator::{
     account::{Account, AccountType},
     split::Split,
     transaction::Transaction,
 };
-use std::env;
+use shellexpand::tilde;
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 use structopt::StructOpt;
 
 mod import;
@@ -19,7 +22,6 @@ fn read_receipt(f: &str) -> receipt::Receipt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_read_receipt() {
@@ -78,26 +80,28 @@ struct Cli {
     filename: String,
 
     #[structopt(parse(from_os_str), long, help = "Accounts csv file")]
-    accounts: Option<std::path::PathBuf>,
+    accounts: Option<PathBuf>,
 
-    #[structopt(
-        parse(from_os_str),
-        short,
-        long,
-        default_value = "~/.config/receqif/rc.db"
-    )]
-    database: Option<std::path::PathBuf>,
+    #[structopt(short, long, default_value = "~/.config/receqif/rc.db")]
+    database: String,
 }
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
     let args = Cli::from_args();
-    match args.accounts {
-        Some(filename) => {
-            let accounts = import::read_accounts(std::path::Path::new(&filename)).unwrap();
-            println!("{:?}", accounts);
-        }
-        None => {}
+
+    let confpath: &str = &tilde(&args.database);
+    let confpath = PathBuf::from(confpath);
+
+    let mut db = PickleDb::new(
+        confpath,
+        PickleDbDumpPolicy::PeriodicDump(Duration::from_secs(10)),
+        SerializationMethod::Json,
+    );
+
+    if let Some(filename) = args.accounts {
+        let accounts = import::read_accounts(Path::new(&filename)).unwrap();
+        db.set("accounts", &accounts).unwrap();
     }
 
     let receipt = read_receipt(&args.filename);
@@ -110,4 +114,5 @@ fn main() {
     let t = gen_trans(&acc, receipt.date(), receipt.total_sum(), &splits).unwrap();
     print!("{}", acc.to_string());
     println!("{}", t.to_string());
+    db.dump().unwrap();
 }
