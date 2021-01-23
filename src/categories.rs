@@ -1,3 +1,5 @@
+use crate::ui::input_category;
+use libc::isatty;
 use radix_trie::Trie;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -31,6 +33,8 @@ impl PartialEq for CatStat {
 
 impl Eq for CatStat {}
 
+pub type CatStats = Trie<String, Vec<CatStat>>;
+
 /// Insert new `cat` into statistics vector or add single usage to existing cat
 fn update_stat(cat: &str, stat: &mut Vec<CatStat>) {
     let existing = stat.iter_mut().find(|stat| stat.category == cat);
@@ -47,7 +51,10 @@ fn update_stat(cat: &str, stat: &mut Vec<CatStat>) {
 
 /// Set up `cat` as category for `item`: update statistics or create new item
 /// in `storage`
-pub fn assign_category(item: &str, cat: &str, storage: &mut Trie<String, Vec<CatStat>>) {
+pub fn assign_category(item: &str, cat: &str, storage: &mut CatStats) {
+    if cat.is_empty() {
+        panic!("Do not assign empty category!")
+    }
     let existing = storage.get_mut(item);
     match existing {
         Some(stat) => update_stat(cat, stat),
@@ -62,13 +69,32 @@ pub fn assign_category(item: &str, cat: &str, storage: &mut Trie<String, Vec<Cat
 }
 
 /// Return most probable category for provided `item`
-pub fn get_top_category<'a>(
-    item: &str,
-    storage: &'a Trie<String, Vec<CatStat>>,
-) -> Option<&'a str> {
+pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str> {
     match storage.get(item) {
         Some(stats) => Some(&stats[0].category),
         None => None,
+    }
+}
+
+/// Choose proper category or ask user
+pub fn get_category(item: &str, storage: &mut CatStats) -> String {
+    let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
+    if istty {
+        let cat = input_category(item);
+        if cat.is_empty() {
+            match get_top_category(item, storage) {
+                Some(cat) => String::from(cat),
+                None => String::new(),
+            }
+        } else {
+            assign_category(&item, &cat, storage);
+            cat
+        }
+    } else {
+        match get_top_category(item, storage) {
+            Some(cat) => String::from(cat),
+            None => String::new(),
+        }
     }
 }
 

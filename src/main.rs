@@ -13,8 +13,12 @@ use std::time::Duration;
 use structopt::StructOpt;
 
 mod categories;
+use categories::get_category;
+use categories::CatStats;
+
 mod import;
 mod receipt;
+mod ui;
 
 fn read_receipt(f: &str) -> receipt::Receipt {
     let json = fs::read_to_string(f).expect("Can't read file");
@@ -37,10 +41,14 @@ mod tests {
     }
 }
 
-fn gen_splits(items: &[receipt::Item]) -> Vec<Split> {
+fn gen_splits(items: &[receipt::Item], cs: &mut CatStats) -> Vec<Split> {
     let mut result: Vec<Split> = Vec::new();
     for i in items.iter() {
-        let t = Split::new().memo(i.name.as_str()).amount(i.sum).build();
+        let t = Split::new()
+            .memo(i.name.as_str())
+            .amount(i.sum)
+            .category(&get_category(i.name.as_str(), cs))
+            .build();
 
         result.push(t);
     }
@@ -111,7 +119,7 @@ fn main() {
         ),
     };
 
-    let catmap: Trie<String, Vec<categories::CatStat>> = match db.get("catmap") {
+    let mut catmap: CatStats = match db.get("catmap") {
         Some(v) => v,
         None => Trie::new(),
     };
@@ -122,7 +130,7 @@ fn main() {
     }
 
     let receipt = read_receipt(&args.filename);
-    let splits = gen_splits(&receipt.items);
+    let splits = gen_splits(&receipt.items, &mut catmap);
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
