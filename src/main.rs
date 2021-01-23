@@ -5,12 +5,14 @@ use qif_generator::{
     split::Split,
     transaction::Transaction,
 };
+use radix_trie::Trie;
 use shellexpand::tilde;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use structopt::StructOpt;
 
+mod categories;
 mod import;
 mod receipt;
 
@@ -92,12 +94,27 @@ fn main() {
 
     let confpath: &str = &tilde(&args.database);
     let confpath = PathBuf::from(confpath);
+    let ten_sec = Duration::from_secs(10);
 
-    let mut db = PickleDb::new(
-        confpath,
-        PickleDbDumpPolicy::PeriodicDump(Duration::from_secs(10)),
+    let db = PickleDb::load(
+        &confpath,
+        PickleDbDumpPolicy::PeriodicDump(ten_sec),
         SerializationMethod::Json,
     );
+
+    let mut db = match db {
+        Ok(db) => db,
+        Err(_) => PickleDb::new(
+            &confpath,
+            PickleDbDumpPolicy::PeriodicDump(ten_sec),
+            SerializationMethod::Json,
+        ),
+    };
+
+    let catmap: Trie<String, Vec<categories::CatStat>> = match db.get("catmap") {
+        Some(v) => v,
+        None => Trie::new(),
+    };
 
     if let Some(filename) = args.accounts {
         let accounts = import::read_accounts(Path::new(&filename)).unwrap();
@@ -114,5 +131,7 @@ fn main() {
     let t = gen_trans(&acc, receipt.date(), receipt.total_sum(), &splits).unwrap();
     print!("{}", acc.to_string());
     println!("{}", t.to_string());
+
+    db.set("catmap", &catmap).unwrap();
     db.dump().unwrap();
 }
