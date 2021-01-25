@@ -142,4 +142,5 @@ fn main() {
 
     db.set("catmap", &catmap).unwrap();
     db.dump().unwrap();
+    ui::run_tv();
 }

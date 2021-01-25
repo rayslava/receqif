@@ -16,3 +16,6 @@ shellexpand = "2.1"
 radix_trie = { version = "0.2", features = ["serde"] }
 libc = "0.2"
 
+[build-dependencies]
+cc = "1.0"
+pkg-config = "0.3"
