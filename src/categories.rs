@@ -70,10 +70,7 @@ pub fn assign_category(item: &str, cat: &str, storage: &mut CatStats) {
 
 /// Return most probable category for provided `item`
 pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str> {
-    match storage.get(item) {
-        Some(stats) => Some(&stats[0].category),
-        None => None,
-    }
+    storage.get(item).map(|s| -> &'a str { &s[0].category })
 }
 
 /// Choose proper category or ask user
