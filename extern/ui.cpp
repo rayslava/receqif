@@ -125,7 +125,7 @@ void TItemViewer::setState(ushort aState, Boolean enable) {
 Boolean TItemViewer::valid(ushort) { return isValid; }
 
 void *TItemViewer::read(ipstream &is) {
-  char *fName;
+  char *fName = NULL;
   TScroller::read(is);
   delete fName;
   return this;
