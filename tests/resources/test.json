@@ -1,273 +1,138 @@
-{
-  "document" : {
-    "receipt" : {
-      "totalSum" : 548702,
-      "userInn" : "7703270067",
-      "operator" : "Теpминал 24",
-      "items" : [
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 5549,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ХРЕН РУССКИЙ 170Г",
-          "sum" : 5549
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 20599,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "СОУС ОСТР.380Г КИНТО",
-          "sum" : 20599
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 6299,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ГОРЧИЦА РУССКАЯ 200Г",
-          "sum" : 6299
-        },
-        {
-          "quantity" : 2,
-          "ndsRate" : 2,
-          "price" : 8949,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "БАБКИНЫ СЕМЕЧКИ 300Г",
-          "sum" : 17898
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 9599,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "КД\/АРАХИС НЕОБЖАРЕНН",
-          "sum" : 9599
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 7998,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ГРЕЦКИЙ ОРЕХ 100Г КД",
-          "sum" : 7998
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 2,
-          "price" : 7349,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ГРЕЧКА ЯДР.П.8Х80ГР",
-          "sum" : 7349
-        },
-        {
-          "quantity" : 5,
-          "ndsRate" : 1,
-          "price" : 23399,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "СИДР ВП ЯБЛ П\/СУХ",
-          "sum" : 116995
-        },
-        {
-          "quantity" : 25,
-          "ndsRate" : 1,
-          "price" : 5799,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "СИДР ЯБЛОЧНЫЙ 0,43Л",
-          "sum" : 144975
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 2,
-          "price" : 5100,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ХЛЕБ УКРАИНСКИЙ 600Г",
-          "sum" : 5100
-        },
-        {
-          "quantity" : 0.75600000000000001,
-          "ndsRate" : 2,
-          "price" : 9990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ТОМАТ СЛИВОВИДНЫЙ",
-          "sum" : 7552
-        },
-        {
-          "quantity" : 0.77000000000000002,
-          "ndsRate" : 2,
-          "price" : 3490,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ЛУК РЕПЧАТЫЙ ВЕС",
-          "sum" : 2687
-        },
-        {
-          "quantity" : 1.28,
-          "ndsRate" : 2,
-          "price" : 6990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "КАРТОФЕЛЬ РАННИЙ ВЕС",
-          "sum" : 8947
-        },
-        {
-          "quantity" : 1.1439999999999999,
-          "ndsRate" : 2,
-          "price" : 17990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ЯБЛОКИ ГОЛДЕН ВЕСОВ",
-          "sum" : 20581
-        },
-        {
-          "quantity" : 0.78200000000000003,
-          "ndsRate" : 2,
-          "price" : 7990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ОГУРЦЫ КОРОТКОП.ВЕС",
-          "sum" : 6248
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 2,
-          "price" : 6990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ЛУК ЗЕЛЕНЫЙ ПУЧОК250",
-          "sum" : 6990
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 2,
-          "price" : 2390,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ПЕТРУШКА ЛОТОК 50ГР",
-          "sum" : 2390
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 5990,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ШАМПИНЬОНЫ РЕЗАНЫЕ",
-          "sum" : 5990
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 2,
-          "price" : 26449,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "СОСИСКИ МОЛОЧН.0,45К",
-          "sum" : 26449
-        },
-        {
-          "quantity" : 2,
-          "ndsRate" : 1,
-          "price" : 4350,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "НОЖ СТОЛОВЫЙ ГРАФИТ",
-          "sum" : 8700
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 29223,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "НОЖ СОМЕЛЬЕ КРАСНЫЙ",
-          "sum" : 29223
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 16230,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ПОЛОВНИК ВЕСЕЛАЯ КУХ",
-          "sum" : 16230
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 19211,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "НОЖ ВСПОМОГАТЕЛЬНЫЙ",
-          "sum" : 19211
-        },
-        {
-          "quantity" : 3,
-          "ndsRate" : 1,
-          "price" : 5349,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "GM KLEEENEX АНТИБ.ВЛ",
-          "sum" : 16047
-        },
-        {
-          "quantity" : 2,
-          "ndsRate" : 1,
-          "price" : 799,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "МЕШКИ Д\/МУСОРА10Л,КД",
-          "sum" : 1598
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 20599,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ДЕЗ-АНТ CITRON 150МЛ",
-          "sum" : 20599
-        },
-        {
-          "quantity" : 1,
-          "ndsRate" : 1,
-          "price" : 6899,
-          "calculationSubjectSign" : 1,
-          "calculationTypeSign" : 4,
-          "name" : "ОБОДОК Д\/ВОЛОС В",
-          "sum" : 6899
+[
+  {
+    "status": 2,
+    "seller": {
+      "name": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ \"АШАН\"",
+      "inn": "7703270067"
+    },
+    "operation": {
+      "date": 638298120,
+      "type": 1,
+      "sum": 267800
+    },
+    "id": "605b73d9de6acb353424f648",
+    "organization": {
+      "name": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ \"АШАН\"",
+      "inn": "7703270067"
+    },
+    "qr": "t=20210324T2002&s=2678.00&fn=9282440300829284&i=28230&fp=1706439950&n=1",
+    "query": {
+      "date": "2021-03-24T20:02",
+      "documentId": 28230,
+      "fsId": "9282440300829284",
+      "fiscalSign": "1706439950",
+      "operationType": 1,
+      "sum": 267800
+    },
+    "ticket": {
+      "document": {
+        "receipt": {
+          "retailPlace": "АШАН - Авиапарк",
+          "totalSum": 267800,
+          "userInn": "7703270067  ",
+          "operator": "Теpминал 24",
+          "items": [
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 17713,
+              "name": "СИДР 0.5 MAGNERS APP",
+              "nds": 1,
+              "price": 17713
+            },
+            {
+              "quantity": 9,
+              "paymentType": 4,
+              "sum": 160191,
+              "name": "СИДР 0.5 MAGNERS APP",
+              "nds": 1,
+              "price": 17799
+            },
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 3699,
+              "name": "ХЛЕБ УКРАИНСКИЙ НАРЕЗКА 650Г",
+              "nds": 2,
+              "price": 3699
+            },
+            {
+              "quantity": 0.4980000000000001,
+              "paymentType": 4,
+              "sum": 8959,
+              "name": "ВИНОГРАД БЕЛЫЙ КИШ-МИШ ВЕС",
+              "nds": 2,
+              "price": 17990
+            },
+            {
+              "quantity": 0.192,
+              "paymentType": 4,
+              "sum": 1918,
+              "name": "ЛИМОНЫ КОРОБКА ВЕС",
+              "nds": 1,
+              "price": 9990
+            },
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 19999,
+              "name": "ЧЕРРИ КРАСН ЖЕМЧ 250",
+              "nds": 2,
+              "price": 19999
+            },
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 3999,
+              "name": "ПЕТРУШКА ЛОТОК 50 ГРАММ",
+              "nds": 2,
+              "price": 3999
+            },
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 5999,
+              "name": "ЛУК ЗЕЛЕНЫЙ ПУЧОК 100ГР",
+              "nds": 2,
+              "price": 5999
+            },
+            {
+              "quantity": 0.733,
+              "paymentType": 4,
+              "sum": 18874,
+              "name": "ГРУДКА БЕЗ КОЖИ ПЕТЕЛИНКА ОХЛ",
+              "nds": 2,
+              "price": 25749
+            },
+            {
+              "quantity": 1,
+              "paymentType": 4,
+              "sum": 26449,
+              "name": "СОСИСКИ МОЛОЧН.ГОСТ Ц/О 0,45КГ",
+              "nds": 2,
+              "price": 26449
+            }
+          ],
+          "ecashTotalSum": 0,
+          "fiscalDriveNumber": "9282440300829284",
+          "shiftNumber": 253,
+          "nds18": 29971,
+          "kktRegId": "0000140901033868    ",
+          "provisionSum": 0,
+          "requestNumber": 43,
+          "fiscalSign": 1706439950,
+          "user": "ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ \"АШАН\"",
+          "prepaidSum": 0,
+          "cashTotalSum": 267800,
+          "fiscalDocumentNumber": 28230,
+          "operationType": 1,
+          "creditSum": 0,
+          "taxationType": 1,
+          "nds10": 7997
         }
-      ],
-      "rawData" : "AwAMBxEEEAA5MjgwNDQwMzAwMDY2NzM0DQQUADAwMDAxNDA5MDEwMzM4NjggICAg+gMMADc3MDMyNzAwNjcgIBAEBAC2uAAA9AMEAODx7F41BAYAMQS+2qrpDgQEALkBAAASBAQAXgAAAB4EAQAB\/AMDAF5fCCMENgAGBBEAlZCFjSCQk5GRioiJIDE3MIM3BAIArRX\/AwIAAAETBAIArRWvBAEAAbwEAQABvgQBAAQjBDkABgQUAJGOk5EgjpGSkC4zODCDIIqIjZKONwQCAHdQ\/wMCAAABEwQCAHdQrwQBAAG8BAEAAb4EAQAEIwQ5AAYEFACDjpCXiJaAIJCTkZGKgJ8gMjAwgzcEAgCbGP8DAgAAARMEAgCbGK8EAQABvAQBAAG+BAEABCMEOQAGBBQAgYCBioiNmyCRhYyFl4qIIDMwMIM3BAIA9SL\/AwIAAAITBAIA6kWvBAEAArwEAQABvgQBAAQjBDkABgQUAIqEL4CQgJWIkSCNhY6BhoCQhY2NNwQCAH8l\/wMCAAABEwQCAH8lrwQBAAG8BAEAAb4EAQAEIwQ5AAYEFACDkIWWioiJII6QhZUgMTAwgyCKhDcEAgA+H\/8DAgAAARMEAgA+H68EAQABvAQBAAG+BAEABCMEOAAGBBMAg5CFl4qAIJ+EkC6PLjiVODCDkDcEAgC1HP8DAgAAARMEAgC1HK8EAQACvAQBAAG+BAEABCMENwAGBBEAkYiEkCCCjyCfgYsgjy+Rk5U3BAIAZ1v\/AwIAAAUTBAMAA8kBrwQBAAG8BAEAAb4EAQAEIwQ5AAYEEwCRiISQIJ+Bi46XjZuJIDAsNDOLNwQCAKcW\/wMCAAAZEwQDAE82Aq8EAQABvAQBAAG+BAEABCMEOQAGBBQAlYuFgSCTipCAiI2RioiJIDYwMIM3BAIA7BP\/AwIAAAETBAIA7BOvBAEAArwEAQABvgQBAAQjBDcABgQRAJKOjICSIJGLiIKOgoiEjZuJNwQCAAYn\/wMDAAP0AhMEAgCAHa8EAQACvAQBAAG+BAEABCMENQAGBBAAi5OKIJCFj5eAkpuJIIKFkTcEAgCiDf8DAgACTRMEAgB\/Cq8EAQACvAQBAAG+BAEABCMEOQAGBBQAioCQko6UhYucIJCAjY2IiSCChZE3BAIAThv\/AwIAAoATBAIA8yKvBAEAArwEAQABvgQBAAQjBDkABgQTAJ+Bi46KiCCDjouEhY0ggoWRjoI3BAIARkb\/AwMAA3gEEwQCAGVQrwQBAAK8BAEAAb4EAQAEIwQ5AAYEEwCOg5OQlpsgio6QjpKKjo8ugoWRNwQCADYf\/wMDAAMOAxMEAgBoGK8EAQACvAQBAAG+BAEABCMEOQAGBBQAi5OKIIeFi4WNm4kgj5OXjooyNTA3BAIAThv\/AwIAAAETBAIAThuvBAEAArwEAQABvgQBAAQjBDgABgQTAI+FkpCTmIqAIIuOko6KIDUwg5A3BAIAVgn\/AwIAAAETBAIAVgmvBAEAArwEAQABvgQBAAQjBDcABgQSAJiAjI+IjZyOjZsgkIWHgI2bhTcEAgBmF\/8DAgAAARMEAgBmF68EAQABvAQBAAG+BAEABCMEOQAGBBQAkY6RiJGKiCCMjouOl40uMCw0NYo3BAIAUWf\/AwIAAAETBAIAUWevBAEAArwEAQABvgQBAAQjBDgABgQTAI2OhiCRko6LjoKbiSCDkICUiJI3BAIA\/hD\/AwIAAAITBAIA\/CGvBAEAAbwEAQABvgQBAAQjBDgABgQTAI2OhiCRjoyFi5yFIIqQgJGNm4k3BAIAJ3L\/AwIAAAETBAIAJ3KvBAEAAbwEAQABvgQBAAQjBDkABgQUAI+Oi46CjYiKIIKFkYWLgJ8gipOVNwQCAGY\/\/wMCAAABEwQCAGY\/rwQBAAG8BAEAAb4EAQAEIwQ4AAYEEwCNjoYggpGPjoyOg4CShYucjZuJNwQCAAtL\/wMCAAABEwQCAAtLrwQBAAG8BAEAAb4EAQAEIwQ5AAYEFABHTSBLTEVFRU5FWCCAjZKIgS6CizcEAgDlFP8DAgAAAxMEAgCvPq8EAQABvAQBAAG+BAEABCMEOQAGBBQAjIWYiogghC+Mk5GOkIAxMIssioQ3BAIAHwP\/AwIAAAITBAIAPgavBAEAAbwEAQABvgQBAAQjBDkABgQUAISFhy2AjZIgQ0lUUk9OIDE1MIyLNwQCAHdQ\/wMCAAABEwQCAHdQrwQBAAG8BAEAAb4EAQAEIwQ1AAYEEACOgY6EjooghC+CjouOkSCCNwQCAPMa\/wMCAAABEwQCAPMarwQBAAG8BAEAAb4EAQAEBwQBAAA5BAMAXl8IvwQBAADABAEAAMEEAQAA\/QMLAJKlcKyoraCrIDI0HwQBAAG5BAEAAk4EAwAwHAFPBAIA1yc=",
-      "ecashTotalSum" : 548702,
-      "fiscalDriveNumber" : "9280440300066734",
-      "requestNumber" : 94,
-      "nds18" : 72752,
-      "postpaymentSum" : 0,
-      "shiftNumber" : 441,
-      "kktRegId" : "0000140901033868    ",
-      "dateTime" : "2020-06-19T17:12:00",
-      "protocolVersion" : 2,
-      "prepaymentSum" : 0,
-      "fiscalSign" : 3202001641,
-      "cashTotalSum" : 0,
-      "counterSubmissionSum" : 0,
-      "receiptCode" : 3,
-      "fiscalDocumentNumber" : 47286,
-      "operationType" : 1,
-      "taxationType" : 1,
-      "nds10" : 10199
-    }
+      }
+    },
+    "kind": "kkt",
+    "createdAt": 638298969
   }
-}
+]

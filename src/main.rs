@@ -20,9 +20,9 @@ mod import;
 mod receipt;
 mod ui;
 
-fn read_receipt(f: &str) -> receipt::Receipt {
+fn read_file(f: &str) -> receipt::Purchase {
     let json = fs::read_to_string(f).expect("Can't read file");
-    receipt::parse_receipt(&json)
+    receipt::parse_purchase(&json)
 }
 
 #[cfg(test)]
@@ -35,9 +35,9 @@ mod tests {
         p.push("tests/resources/test.json");
         let full_path = p.to_string_lossy();
 
-        let result = read_receipt(&full_path).items;
-        assert_eq!(result[0].name, "ХРЕН РУССКИЙ 170Г");
-        assert_eq!(result[0].sum, 5549);
+        let result = read_file(&full_path).items;
+        assert_eq!(result[0].name, "СИДР 0.5 MAGNERS APP");
+        assert_eq!(result[0].sum, 17713);
     }
 }
 
@@ -129,14 +129,14 @@ fn main() {
         db.set("accounts", &accounts).unwrap();
     }
 
-    let receipt = read_receipt(&args.filename);
-    let splits = gen_splits(&receipt.items, &mut catmap);
+    let purchase = read_file(&args.filename);
+    let splits = gen_splits(&purchase.items, &mut catmap);
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
         .build();
 
-    let t = gen_trans(&acc, receipt.date(), receipt.total_sum(), &splits).unwrap();
+    let t = gen_trans(&acc, purchase.date(), purchase.total_sum(), &splits).unwrap();
     print!("{}", acc.to_string());
     println!("{}", t.to_string());
 

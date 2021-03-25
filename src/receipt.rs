@@ -2,7 +2,23 @@ use chrono::{Date, Utc};
 use serde::Deserialize;
 use std::fmt;
 
-#[derive(Deserialize, Debug)]
+pub struct Purchase {
+    sum: i64,
+    date: Date<Utc>,
+    pub items: Vec<Item>,
+}
+
+impl Purchase {
+    pub fn total_sum(self) -> i64 {
+        self.sum
+    }
+
+    pub fn date(&self) -> Date<Utc> {
+        self.date
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct Item {
     pub name: String,
     pub sum: i64,
@@ -16,22 +32,30 @@ impl fmt::Display for Item {
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]
-#[derive(Deserialize, Debug)]
-pub struct Receipt {
+#[derive(Deserialize, Debug, Clone)]
+struct Receipt {
     totalSum: i64,
-    #[serde(with = "custom_date_format")]
-    dateTime: Date<Utc>,
     pub items: Vec<Item>,
 }
 
-impl Receipt {
-    pub fn total_sum(self) -> i64 {
-        self.totalSum
-    }
+#[allow(dead_code)]
+#[derive(Deserialize)]
+struct Document {
+    receipt: Receipt,
+}
 
-    pub fn date(&self) -> Date<Utc> {
-        self.dateTime
-    }
+#[allow(dead_code)]
+#[derive(Deserialize)]
+struct Ticket {
+    document: Document,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize)]
+struct Query {
+    sum: i64,
+    #[serde(with = "custom_date_format")]
+    date: Date<Utc>,
 }
 
 mod custom_date_format {
@@ -39,7 +63,7 @@ mod custom_date_format {
     use serde::{self, Deserialize, Deserializer};
 
     /// The format seems alike to RFC3339 but is not compliant
-    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
+    const FORMAT: &str = "%Y-%m-%dT%H:%M";
 
     /// Custom deserializer for format in our json
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Date<Utc>, D::Error>
@@ -59,19 +83,19 @@ mod custom_date_format {
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
-struct Document {
-    receipt: Receipt,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize)]
 struct Input {
-    document: Document,
+    query: Query,
+    ticket: Ticket,
 }
 
-pub fn parse_receipt(line: &str) -> Receipt {
-    let result: Input = serde_json::from_str(&line).unwrap();
-    result.document.receipt
+pub fn parse_purchase(line: &str) -> Purchase {
+    // TODO: Check if several receipts are possible
+    let receipt: Vec<Input> = serde_json::from_str(&line).unwrap();
+    Purchase {
+        sum: receipt[0].query.sum,
+        date: receipt[0].query.date,
+        items: receipt[0].ticket.document.receipt.items.clone(),
+    }
 }
 
 #[cfg(test)]
@@ -101,6 +125,28 @@ mod receipt {
     }
 
     #[test]
+    fn query() {
+        let line = String::from(
+            r#"
+{
+    "date": "2021-03-24T20:02",
+    "documentId": 28230,
+    "fsId": "9282440300829284",
+    "fiscalSign": "1706439950",
+    "operationType": 1,
+    "sum": 267800
+}
+"#,
+        );
+
+        let testit: Query = serde_json::from_str(&line).unwrap();
+        assert_eq!(testit.sum, 267800);
+        assert_eq!(testit.date.day(), 24);
+        assert_eq!(testit.date.month(), 3);
+        assert_eq!(testit.date.year(), 2021);
+    }
+
+    #[test]
     fn receipt() {
         let line = String::from(
             r#"
@@ -127,8 +173,7 @@ mod receipt {
 	    "name" : "СОУС ОСТР.380Г КИНТО",
 	    "sum" : 20599
         }
-    ],
-    "dateTime" : "2020-06-19T17:12:00"
+    ]
 }
 "#,
         );
@@ -138,9 +183,6 @@ mod receipt {
         assert_eq!(testit.items.len(), 2);
         assert_eq!(testit.items[0].sum, 5549);
         assert_eq!(testit.items[1].sum, 20599);
-        assert_eq!(testit.dateTime.day(), 19);
-        assert_eq!(testit.dateTime.month(), 6);
-        assert_eq!(testit.dateTime.year(), 2020);
     }
 
     #[test]
@@ -148,6 +190,15 @@ mod receipt {
         let line = String::from(
             r#"
 {
+"query": {
+      "date": "2021-03-24T20:02",
+      "documentId": 28230,
+      "fsId": "9282440300829284",
+      "fiscalSign": "1706439950",
+      "operationType": 1,
+      "sum": 267800
+    },
+"ticket": {
   "document" : {
     "receipt" : {
       "totalSum" : 548702,
@@ -172,22 +223,22 @@ mod receipt {
           "name" : "СОУС ОСТР.380Г КИНТО",
           "sum" : 20599
         }
-      ],
-    "dateTime" : "2020-06-19T17:12:00"
+      ]
     }
   }
+}
 }
 "#,
         );
 
         let testit: Input = serde_json::from_str(&line).unwrap();
-        assert_eq!(testit.document.receipt.totalSum, 548702);
-        assert_eq!(testit.document.receipt.items.len(), 2);
-        assert_eq!(testit.document.receipt.items[0].sum, 5549);
-        assert_eq!(testit.document.receipt.items[1].sum, 20599);
-        assert_eq!(testit.document.receipt.dateTime.day(), 19);
-        assert_eq!(testit.document.receipt.dateTime.month(), 6);
-        assert_eq!(testit.document.receipt.dateTime.year(), 2020);
+        assert_eq!(testit.ticket.document.receipt.totalSum, 548702);
+        assert_eq!(testit.ticket.document.receipt.items.len(), 2);
+        assert_eq!(testit.ticket.document.receipt.items[0].sum, 5549);
+        assert_eq!(testit.ticket.document.receipt.items[1].sum, 20599);
+        assert_eq!(testit.query.date.day(), 24);
+        assert_eq!(testit.query.date.month(), 3);
+        assert_eq!(testit.query.date.year(), 2021);
     }
 
     #[test]
