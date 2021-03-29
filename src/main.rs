@@ -18,6 +18,7 @@ use categories::CatStats;
 
 mod import;
 mod receipt;
+mod telegram;
 mod ui;
 
 fn read_file(f: &str) -> receipt::Purchase {
@@ -128,6 +129,8 @@ fn main() {
         let accounts = import::read_accounts(Path::new(&filename)).unwrap();
         db.set("accounts", &accounts).unwrap();
     }
+
+    telegram::bot();
 
     let purchase = read_file(&args.filename);
     let splits = gen_splits(&purchase.items, &mut catmap);
