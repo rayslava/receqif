@@ -303,6 +303,8 @@ dependencies = [
 [[package]]
 name = "qif_generator"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5373139ce3690b7b53490402d93e53f21066e481caf5934026f9811c5912ca9"
 dependencies = [
  "chrono",
 ]
