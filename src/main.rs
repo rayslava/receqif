@@ -18,6 +18,7 @@ use categories::CatStats;
 
 mod import;
 mod receipt;
+#[cfg(feature = "telegram")]
 mod telegram;
 mod ui;
 
@@ -130,6 +131,7 @@ fn main() {
         db.set("accounts", &accounts).unwrap();
     }
 
+    #[cfg(feature = "telegram")]
     telegram::bot();
 
     let purchase = read_file(&args.filename);

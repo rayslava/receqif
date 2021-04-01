@@ -8,12 +8,14 @@ use teloxide::{DownloadError, RequestError};
 use thiserror::Error;
 use tokio::fs::File;
 
+#[cfg(feature = "telegram")]
 #[tokio::main]
 pub async fn bot() {
     run().await;
 }
 
 /// Possible error while receiving a file
+#[cfg(feature = "telegram")]
 #[derive(Debug, Error, From)]
 enum FileReceiveError {
     /// Download process error
@@ -27,6 +29,7 @@ enum FileReceiveError {
     Io(#[source] std::io::Error),
 }
 
+#[cfg(feature = "telegram")]
 async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
     let TgFile {
         file_id, file_path, ..
@@ -37,6 +40,7 @@ async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileRe
     Ok(filepath)
 }
 
+#[cfg(feature = "telegram")]
 async fn run() {
     teloxide::enable_logging!();
     log::info!("Starting dices_bot...");
