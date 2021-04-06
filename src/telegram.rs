@@ -1,9 +1,9 @@
 // This bot throws a dice on each incoming message.
 
 use derive_more::From;
-use teloxide::prelude::*;
 use teloxide::types::*;
 use teloxide::{net::Download, types::File as TgFile, Bot};
+use teloxide::{prelude::*, utils::command::BotCommand};
 use teloxide::{DownloadError, RequestError};
 use thiserror::Error;
 use tokio::fs::File;
@@ -27,6 +27,15 @@ enum FileReceiveError {
     /// Io error while writing file
     #[error("An I/O error: {0}")]
     Io(#[source] std::io::Error),
+}
+
+#[derive(BotCommand, Debug)]
+#[command(rename = "lowercase", description = "These commands are supported:")]
+enum Command {
+    #[command(description = "display this text.")]
+    Help,
+    #[command(description = "Register new user in bot.")]
+    Start,
 }
 
 #[cfg(feature = "telegram")]
@@ -60,6 +69,24 @@ async fn run() {
                 }
 
                 message.answer_dice().await?;
+            } else if let Some(line) = message.update.text() {
+                if let Ok(command) = Command::parse(line, "tgqif") {
+                    match command {
+                        Command::Help => {
+                            message.answer(Command::descriptions()).send().await?;
+                        }
+                        Command::Start => {
+                            if let Some(user) = message.update.from() {
+                                message
+                                    .answer(format!(
+                                        "You registered as @{} with id {}.",
+                                        user.first_name, user.id
+                                    ))
+                                    .await?;
+                            }
+                        }
+                    }
+                }
             }
         }
         respond(())

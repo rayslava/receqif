@@ -918,8 +918,6 @@ dependencies = [
 [[package]]
 name = "qif_generator"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5373139ce3690b7b53490402d93e53f21066e481caf5934026f9811c5912ca9"
 dependencies = [
  "chrono",
 ]
@@ -1317,6 +1315,7 @@ dependencies = [
  "serde_json",
  "serde_with_macros",
  "teloxide-core",
+ "teloxide-macros",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -1345,6 +1344,17 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+]
+
+[[package]]
+name = "teloxide-macros"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44db3d9259fa57c56ab627277e42dc8f0b2c274fa86a502d18ef804ccf0d51f4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
