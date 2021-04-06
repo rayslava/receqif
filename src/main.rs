@@ -48,7 +48,7 @@ fn gen_splits(items: &[receipt::Item], cs: &mut CatStats) -> Vec<Split> {
     for i in items.iter() {
         let t = Split::new()
             .memo(i.name.as_str())
-            .amount(i.sum)
+            .amount(-i.sum)
             .category(&get_category(i.name.as_str(), cs))
             .build();
 
@@ -71,7 +71,7 @@ fn gen_trans<'a>(
 
     match t {
         Ok(t) => {
-            if t.sum() == sum {
+            if t.sum() == -sum {
                 Ok(t)
             } else {
                 Err(format!(
