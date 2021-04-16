@@ -85,6 +85,58 @@ fn gen_trans<'a>(
     }
 }
 
+/// Configuration for single user
+struct User {
+    /// Telegram user id
+    uid: i128,
+    /// Categories statistics for the user
+    catmap: CatStats,
+    /// Available accounts for the user
+    accounts: Vec<String>,
+}
+
+const default_db_path: &str = "~/.config/receqif/";
+
+fn prep_user(uid: i128) -> User {
+    let ten_sec = Duration::from_secs(10);
+    let path = default_db_path.to_owned() + &uid.to_string() + ".db";
+
+    let confpath: &str = &tilde(&path);
+
+    let confpath = PathBuf::from(confpath);
+
+    let db = PickleDb::load(
+        &confpath,
+        PickleDbDumpPolicy::PeriodicDump(ten_sec),
+        SerializationMethod::Json,
+    );
+
+    let mut db = match db {
+        Ok(db) => db,
+        Err(_) => PickleDb::new(
+            &confpath,
+            PickleDbDumpPolicy::PeriodicDump(ten_sec),
+            SerializationMethod::Json,
+        ),
+    };
+
+    let mut catmap: CatStats = match db.get("catmap") {
+        Some(v) => v,
+        None => Trie::new(),
+    };
+
+    let accounts = match db.get("accounts") {
+        Some(a) => a,
+        None => vec![],
+    };
+
+    User {
+        uid: uid,
+        catmap: catmap,
+        accounts: accounts,
+    }
+}
+
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(StructOpt)]
 struct Cli {
@@ -94,7 +146,7 @@ struct Cli {
     #[structopt(parse(from_os_str), long, help = "Accounts csv file")]
     accounts: Option<PathBuf>,
 
-    #[structopt(short, long, default_value = "~/.config/receqif/rc.db")]
+    #[structopt(short, long, default_value = &(default_db_path.to_owned() + "rc.db"))]
     database: String,
 }
 
