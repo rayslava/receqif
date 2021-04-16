@@ -15,6 +15,7 @@ use structopt::StructOpt;
 mod categories;
 use categories::get_category;
 use categories::CatStats;
+use const_format::concatcp;
 
 mod import;
 mod receipt;
@@ -95,11 +96,11 @@ struct User {
     accounts: Vec<String>,
 }
 
-const default_db_path: &str = "~/.config/receqif/";
+const DEFAULT_DB_PATH: &str = "~/.config/receqif/";
 
 fn prep_user(uid: i128) -> User {
     let ten_sec = Duration::from_secs(10);
-    let path = default_db_path.to_owned() + &uid.to_string() + ".db";
+    let path = DEFAULT_DB_PATH.to_owned() + &uid.to_string() + ".db";
 
     let confpath: &str = &tilde(&path);
 
@@ -111,7 +112,7 @@ fn prep_user(uid: i128) -> User {
         SerializationMethod::Json,
     );
 
-    let mut db = match db {
+    let db = match db {
         Ok(db) => db,
         Err(_) => PickleDb::new(
             &confpath,
@@ -120,7 +121,7 @@ fn prep_user(uid: i128) -> User {
         ),
     };
 
-    let mut catmap: CatStats = match db.get("catmap") {
+    let catmap: CatStats = match db.get("catmap") {
         Some(v) => v,
         None => Trie::new(),
     };
@@ -131,9 +132,9 @@ fn prep_user(uid: i128) -> User {
     };
 
     User {
-        uid: uid,
-        catmap: catmap,
-        accounts: accounts,
+        uid,
+        catmap,
+        accounts,
     }
 }
 
@@ -146,7 +147,7 @@ struct Cli {
     #[structopt(parse(from_os_str), long, help = "Accounts csv file")]
     accounts: Option<PathBuf>,
 
-    #[structopt(short, long, default_value = &(default_db_path.to_owned() + "rc.db"))]
+    #[structopt(short, long, default_value = concatcp!(DEFAULT_DB_PATH,"rc.db"))]
     database: String,
 }
 
