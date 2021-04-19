@@ -24,6 +24,9 @@ struct Cli {
     #[structopt(short, long)]
     database: Option<String>,
 
+    #[structopt(short, long, default_value = "New")]
+    memo: String,
+
     /// Run telegram bot
     #[structopt(short, long)]
     telegram: bool,
@@ -47,14 +50,12 @@ fn main() {
     }
 
     // If program is used as command-line tool
-    let purchase = convert::read_file(&args.filename);
-    let splits = convert::gen_splits(&purchase.items, &mut user.catmap);
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
         .build();
 
-    let t = convert::gen_trans(&acc, purchase.date(), purchase.total_sum(), &splits).unwrap();
+    let t = convert::convert(&args.filename, &args.memo, &mut user, &acc).unwrap();
     print!("{}", acc.to_string());
     println!("{}", t.to_string());
 
