@@ -1,12 +1,18 @@
 // This bot throws a dice on each incoming message.
 
+use crate::categories::CatStats;
+use crate::convert::convert;
+use crate::user::User;
 use derive_more::From;
+use qif_generator::{account::Account, account::AccountType};
+use std::sync::atomic::{AtomicBool, Ordering};
 use teloxide::types::*;
 use teloxide::{net::Download, types::File as TgFile, Bot};
 use teloxide::{prelude::*, utils::command::BotCommand};
 use teloxide::{DownloadError, RequestError};
 use thiserror::Error;
 use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 #[cfg(feature = "telegram")]
 #[tokio::main]
@@ -29,6 +35,18 @@ enum FileReceiveError {
     Io(#[source] std::io::Error),
 }
 
+/// Possible error while receiving a file
+#[cfg(feature = "telegram")]
+#[derive(Debug, Error, From)]
+enum FileConvertError {
+    /// Telegram request error
+    #[error("JSON conversion error: {0}")]
+    Request(String),
+    /// Io error while writing file
+    #[error("An I/O error: {0}")]
+    Io(#[source] std::io::Error),
+}
+
 #[derive(BotCommand, Debug)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
 enum Command {
@@ -37,6 +55,9 @@ enum Command {
     #[command(description = "Register new user in bot.")]
     Start,
 }
+
+#[cfg(feature = "telegram")]
+static IS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "telegram")]
 async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
@@ -50,9 +71,36 @@ async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileRe
 }
 
 #[cfg(feature = "telegram")]
+async fn convert_file(jsonfile: &str, user: &mut User) -> Result<String, FileConvertError> {
+    let filepath = format!("/tmp/{}.qif", jsonfile);
+    let mut file = File::create(&filepath).await?;
+
+    let acc = Account::new()
+        .name("Wallet")
+        .account_type(AccountType::Cash)
+        .build();
+
+    let t = convert(jsonfile, "Test", user, &acc)?;
+    file.write(acc.to_string().as_bytes()).await?;
+    file.write(t.to_string().as_bytes()).await?;
+    Ok(filepath)
+}
+
+#[cfg(feature = "telegram")]
+pub fn bot_is_running() -> bool {
+    IS_RUNNING.load(Ordering::SeqCst)
+}
+
+#[cfg(feature = "telegram")]
+pub fn input_category_from_tg(item: &str, categories: &CatStats) -> String {
+    String::new()
+}
+
+#[cfg(feature = "telegram")]
 async fn run() {
     teloxide::enable_logging!();
     log::info!("Starting dices_bot...");
+    IS_RUNNING.store(true, Ordering::SeqCst);
 
     let bot = Bot::from_env().auto_send();
 
@@ -66,6 +114,10 @@ async fn run() {
                     message
                         .answer(format!("File received: {:} ", newfile))
                         .await?;
+                    if let Some(tguser) = message.update.from() {
+                        let mut user = User::new(tguser.id, &None);
+                        let result = convert_file(&newfile, &mut user);
+                    }
                 }
 
                 message.answer_dice().await?;
@@ -92,4 +144,5 @@ async fn run() {
         respond(())
     })
     .await;
+    IS_RUNNING.store(false, Ordering::SeqCst);
 }

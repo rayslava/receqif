@@ -27,7 +27,7 @@ impl Drop for User {
 }
 
 impl User {
-    pub fn new(uid: i128, dbfile: &Option<String>) -> Self {
+    pub fn new(uid: i64, dbfile: &Option<String>) -> Self {
         let ten_sec = Duration::from_secs(10);
         let path: String = match dbfile {
             Some(path) => path.to_string(),

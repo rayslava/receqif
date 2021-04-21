@@ -1,3 +1,5 @@
+#[cfg(feature = "telegram")]
+use crate::telegram::{bot_is_running, input_category_from_tg};
 use crate::ui::input_category;
 use libc::isatty;
 use radix_trie::Trie;
@@ -75,6 +77,11 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
 
 /// Choose proper category or ask user
 pub fn get_category(item: &str, storage: &mut CatStats) -> String {
+    #[cfg(feature = "telegram")]
+    if bot_is_running() {
+        input_category_from_tg(item, &storage);
+    };
+
     let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
     if istty {
         let topcat = match get_top_category(item, storage) {
