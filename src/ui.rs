@@ -19,9 +19,9 @@ pub fn run_tv() {
     println!("Hello, world!");
 }
 
-pub fn input_category(item: &str) -> String {
+pub fn input_category(item: &str, cat: &str) -> String {
     let mut x = String::with_capacity(64);
-    print!("Category for '{}'? > ", item);
+    print!("'{}'? (default: {}) > ", item, cat);
     let _ = stdout().flush();
     stdin().read_line(&mut x).expect("Error reading input");
     String::from(x.trim_end_matches('\n'))

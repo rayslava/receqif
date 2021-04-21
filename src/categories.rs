@@ -77,12 +77,13 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
 pub fn get_category(item: &str, storage: &mut CatStats) -> String {
     let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
     if istty {
-        let cat = input_category(item);
+        let topcat = match get_top_category(item, storage) {
+            Some(cat) => String::from(cat),
+            None => String::new(),
+        };
+        let cat = input_category(item, &topcat);
         if cat.is_empty() {
-            match get_top_category(item, storage) {
-                Some(cat) => String::from(cat),
-                None => String::new(),
-            }
+            topcat
         } else {
             assign_category(&item, &cat, storage);
             cat
