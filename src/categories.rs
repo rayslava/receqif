@@ -79,7 +79,7 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
 pub fn get_category(item: &str, storage: &mut CatStats) -> String {
     #[cfg(feature = "telegram")]
     if bot_is_running() {
-        input_category_from_tg(item, &storage);
+        return input_category_from_tg(item, &storage);
     };
 
     let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;

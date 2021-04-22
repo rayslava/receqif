@@ -15,9 +15,6 @@ mod user;
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(StructOpt)]
 struct Cli {
-    /// The path to the file to read
-    filename: String,
-
     #[structopt(parse(from_os_str), long, help = "Accounts csv file")]
     accounts: Option<PathBuf>,
 
@@ -30,6 +27,10 @@ struct Cli {
     /// Run telegram bot
     #[structopt(short, long)]
     telegram: bool,
+
+    /// The path to the file to read
+    #[structopt(required_unless = "telegram")]
+    filename: Option<String>,
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -55,10 +56,11 @@ fn main() {
         .account_type(AccountType::Cash)
         .build();
 
-    let t = convert::convert(&args.filename, &args.memo, &mut user, &acc).unwrap();
-    print!("{}", acc.to_string());
-    println!("{}", t.to_string());
-
+    if let Some(filename) = &args.filename {
+        let t = convert::convert(filename, &args.memo, &mut user, &acc).unwrap();
+        print!("{}", acc.to_string());
+        println!("{}", t.to_string());
+    }
     #[cfg(feature = "tv")]
     {
         ui::run_tv();

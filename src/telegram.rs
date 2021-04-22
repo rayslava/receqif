@@ -1,6 +1,4 @@
-// This bot throws a dice on each incoming message.
-
-use crate::categories::CatStats;
+use crate::categories::{get_top_category, CatStats};
 use crate::convert::convert;
 use crate::user::User;
 use derive_more::From;
@@ -52,6 +50,7 @@ enum FileConvertError {
 enum Command {
     #[command(description = "display this text.")]
     Help,
+
     #[command(description = "Register new user in bot.")]
     Start,
 }
@@ -72,15 +71,19 @@ async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileRe
 
 #[cfg(feature = "telegram")]
 async fn convert_file(jsonfile: &str, user: &mut User) -> Result<String, FileConvertError> {
-    let filepath = format!("/tmp/{}.qif", jsonfile);
+    log::info!("Converting file");
+    let filepath = format!("{}.qif", jsonfile);
+    log::info!("filepath: {}", &filepath);
     let mut file = File::create(&filepath).await?;
+    log::info!("File created");
 
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
         .build();
-
+    log::info!("Account is ready");
     let t = convert(jsonfile, "Test", user, &acc)?;
+    log::info!("Conversion performed");
     file.write(acc.to_string().as_bytes()).await?;
     file.write(t.to_string().as_bytes()).await?;
     Ok(filepath)
@@ -93,13 +96,16 @@ pub fn bot_is_running() -> bool {
 
 #[cfg(feature = "telegram")]
 pub fn input_category_from_tg(item: &str, categories: &CatStats) -> String {
-    String::new()
+    match get_top_category(item, categories) {
+        Some(cat) => String::from(cat),
+        None => String::new(),
+    }
 }
 
 #[cfg(feature = "telegram")]
 async fn run() {
     teloxide::enable_logging!();
-    log::info!("Starting dices_bot...");
+    log::info!("Starting telegram bot");
     IS_RUNNING.store(true, Ordering::SeqCst);
 
     let bot = Bot::from_env().auto_send();
@@ -116,7 +122,12 @@ async fn run() {
                         .await?;
                     if let Some(tguser) = message.update.from() {
                         let mut user = User::new(tguser.id, &None);
-                        let result = convert_file(&newfile, &mut user);
+                        if let Ok(result) = convert_file(&newfile, &mut user).await {
+                            let input = InputFile::file(result);
+                            message.answer_document(input).await?;
+                        } else {
+                            message.answer("Conversion error").await?;
+                        }
                     }
                 }
 
