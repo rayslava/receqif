@@ -1,5 +1,7 @@
-use crate::categories::{get_top_category, CatStats};
-use crate::convert::convert;
+// This bot throws a dice on each incoming message.
+
+use crate::categories::{assign_category, CatStats};
+use crate::convert::{convert, non_cat_items};
 use crate::user::User;
 use derive_more::From;
 use qif_generator::{account::Account, account::AccountType};
@@ -70,13 +72,20 @@ async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileRe
 }
 
 #[cfg(feature = "telegram")]
-async fn convert_file(jsonfile: &str, user: &mut User) -> Result<String, FileConvertError> {
-    log::info!("Converting file");
+async fn convert_file(
+    jsonfile: &str,
+    user: &mut User,
+    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
+) -> Result<String, FileConvertError> {
     let filepath = format!("{}.qif", jsonfile);
-    log::info!("filepath: {}", &filepath);
+    log::info!("Converting file into {}", filepath);
     let mut file = File::create(&filepath).await?;
-    log::info!("File created");
-
+    log::info!("Got file");
+    for i in non_cat_items(&jsonfile, &user) {
+        log::info!("Message about {}", i);
+        let newcat = input_category_from_tg(&i, &user.catmap);
+        ctx.answer(format!("{} is set to {}", i, newcat)).await;
+    }
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
@@ -95,11 +104,13 @@ pub fn bot_is_running() -> bool {
 }
 
 #[cfg(feature = "telegram")]
-pub fn input_category_from_tg(item: &str, categories: &CatStats) -> String {
-    match get_top_category(item, categories) {
-        Some(cat) => String::from(cat),
-        None => String::new(),
-    }
+pub async fn input_category_from_tg(
+    item: &str,
+    categories: &CatStats,
+    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
+) -> String {
+    ctx.answer(format!("Input category for {}", item)).await;
+    String::new()
 }
 
 #[cfg(feature = "telegram")]
@@ -122,11 +133,13 @@ async fn run() {
                         .await?;
                     if let Some(tguser) = message.update.from() {
                         let mut user = User::new(tguser.id, &None);
-                        if let Ok(result) = convert_file(&newfile, &mut user).await {
-                            let input = InputFile::file(result);
-                            message.answer_document(input).await?;
-                        } else {
-                            message.answer("Conversion error").await?;
+                        message
+                            .answer(format!("Created user: {:} ", tguser.id))
+                            .await?;
+                        if let Ok(result) = convert_file(&newfile, &mut user, &message).await {
+                            message
+                                .answer(format!("File converted into: {:} ", result))
+                                .await?;
                         }
                     }
                 }
