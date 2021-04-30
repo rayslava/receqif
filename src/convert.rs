@@ -1,5 +1,5 @@
-use crate::categories::get_category;
 use crate::categories::CatStats;
+use crate::categories::{get_category, get_top_category};
 use crate::receipt;
 use crate::user::User;
 use chrono::{Date, Utc};
@@ -72,6 +72,19 @@ pub fn gen_trans<'a>(
         }
         Err(e) => Err(e),
     }
+}
+
+/// Check if all items in `filename` do have a category assigned by `user`
+pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
+    let file = read_file(filename);
+    let mut result: Vec<String> = Vec::new();
+    for i in &file.items {
+        match get_top_category(i.name.as_str(), &user.catmap) {
+            Some(_) => (),
+            None => result.push(String::from(i.name.as_str())),
+        }
+    }
+    result
 }
 
 /// Convert `filename` into a QIF transaction
