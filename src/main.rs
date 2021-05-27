@@ -25,11 +25,17 @@ struct Cli {
     memo: String,
 
     /// Run telegram bot
+    #[cfg(feature = "telegram")]
     #[structopt(short, long)]
     telegram: bool,
 
+    /// Run Turbo Vision UI
+    #[cfg(feature = "tv")]
+    #[structopt(long)]
+    ui: bool,
+
     /// The path to the file to read
-    #[structopt(required_unless = "telegram")]
+    #[structopt(required_unless_one = &["telegram", "ui"])]
     filename: Option<String>,
 }
 
@@ -50,6 +56,12 @@ fn main() {
         Some(path) => user.accounts(import::read_accounts(&path).unwrap()),
     }
 
+    #[cfg(feature = "tv")]
+    {
+        ui::run_tv();
+        return;
+    }
+
     // If program is used as command-line tool
     let acc = Account::new()
         .name("Wallet")
@@ -63,10 +75,5 @@ fn main() {
         let t = convert::convert(filename, &args.memo, &mut user, &acc, &cat).unwrap();
         print!("{}", acc.to_string());
         println!("{}", t.to_string());
-    }
-
-    #[cfg(feature = "tv")]
-    {
-        ui::run_tv();
     }
 }

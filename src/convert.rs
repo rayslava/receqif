@@ -1,3 +1,4 @@
+#[cfg(feature = "telegram")]
 use crate::categories::get_top_category;
 use crate::categories::CatStats;
 use crate::receipt;
@@ -78,6 +79,7 @@ pub fn gen_trans<'a>(
 }
 
 /// Check if all items in `filename` do have a category assigned by `user`
+#[cfg(feature = "telegram")]
 pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
     let file = read_file(filename);
     let mut result: Vec<String> = Vec::new();
