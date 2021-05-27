@@ -115,9 +115,17 @@ pub async fn input_category_from_tg(
     ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
     log::info!("{:?}", accounts);
-    let keyboard = InlineKeyboardMarkup::default().append_row(accounts.iter().map(|line| {
-        InlineKeyboardButton::new(line, InlineKeyboardButtonKind::CallbackData(line.into()))
-    }));
+    let keyboard = InlineKeyboardMarkup::default().append_row(
+        accounts
+            .iter()
+            .filter(|l| l.starts_with("Expenses:"))
+            .map(|line| {
+                InlineKeyboardButton::new(
+                    line.strip_prefix("Expenses:").unwrap(),
+                    InlineKeyboardButtonKind::CallbackData(line.into()),
+                )
+            }),
+    );
     ctx.answer(format!("Input category for {}", item))
         .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
         .await
@@ -133,6 +141,7 @@ async fn run() {
 
     let bot = Bot::from_env().auto_send();
 
+    // TODO: Add Dispatcher to process UpdateKinds
     teloxide::repl(bot, |message| async move {
         let update = &message.update;
         if let MessageKind::Common(msg) = &update.kind {
