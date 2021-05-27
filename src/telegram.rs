@@ -1,6 +1,6 @@
 // This bot throws a dice on each incoming message.
 
-use crate::categories::{assign_category, CatStats};
+use crate::categories::{get_category_from_tg, CatStats};
 use crate::convert::{convert, non_cat_items};
 use crate::user::User;
 use derive_more::From;
@@ -83,16 +83,19 @@ async fn convert_file(
     log::info!("Got file");
     for i in non_cat_items(&jsonfile, &user) {
         log::info!("Message about {}", i);
-        let newcat = input_category_from_tg(&i, &user.catmap);
-        ctx.answer(format!("{} is set to {}", i, newcat)).await;
+        let newcat = input_category_from_tg(&i, &user.catmap, &ctx).await;
+        ctx.answer(format!("{} is set to {}", i, newcat))
+            .await
+            .unwrap();
     }
     let acc = Account::new()
         .name("Wallet")
         .account_type(AccountType::Cash)
         .build();
-    log::info!("Account is ready");
-    let t = convert(jsonfile, "Test", user, &acc)?;
-    log::info!("Conversion performed");
+
+    let cat =
+        &|item: &str, stats: &mut CatStats| -> String { get_category_from_tg(&item, stats, &ctx) };
+    let t = convert(jsonfile, "Test", user, &acc, cat)?;
     file.write(acc.to_string().as_bytes()).await?;
     file.write(t.to_string().as_bytes()).await?;
     Ok(filepath)
@@ -109,7 +112,9 @@ pub async fn input_category_from_tg(
     categories: &CatStats,
     ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
-    ctx.answer(format!("Input category for {}", item)).await;
+    ctx.answer(format!("Input category for {}", item))
+        .await
+        .unwrap();
     String::new()
 }
 

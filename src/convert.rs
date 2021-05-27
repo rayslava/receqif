@@ -1,5 +1,5 @@
+use crate::categories::get_top_category;
 use crate::categories::CatStats;
-use crate::categories::{get_category, get_top_category};
 use crate::receipt;
 use crate::user::User;
 use chrono::{Date, Utc};
@@ -30,13 +30,16 @@ mod tests {
 }
 
 /// Generate set of QIF Splits from a Purchase items
-pub fn gen_splits(items: &[receipt::Item], cs: &mut CatStats) -> Vec<Split> {
+pub fn gen_splits<F>(items: &[receipt::Item], cs: &mut CatStats, categorizer: F) -> Vec<Split>
+where
+    F: Fn(&str, &mut CatStats) -> String,
+{
     let mut result: Vec<Split> = Vec::new();
     for i in items.iter() {
         let t = Split::new()
             .memo(i.name.as_str())
             .amount(-i.sum)
-            .category(&get_category(i.name.as_str(), cs))
+            .category(&categorizer(i.name.as_str(), cs))
             .build();
 
         result.push(t);
@@ -88,13 +91,17 @@ pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
 }
 
 /// Convert `filename` into a QIF transaction
-pub fn convert<'a>(
+pub fn convert<'a, F>(
     filename: &'a str,
     memo: &str,
     user: &'a mut User,
     acc: &'a Account,
-) -> Result<Transaction<'a>, String> {
+    categorizer: F,
+) -> Result<Transaction<'a>, String>
+where
+    F: Fn(&str, &mut CatStats) -> String,
+{
     let purchase = read_file(filename);
-    let splits = gen_splits(&purchase.items, &mut user.catmap);
+    let splits = gen_splits(&purchase.items, &mut user.catmap, categorizer);
     gen_trans(&acc, purchase.date(), purchase.total_sum(), memo, splits)
 }

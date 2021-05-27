@@ -5,6 +5,10 @@ use libc::isatty;
 use radix_trie::Trie;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+#[cfg(feature = "telegram")]
+use teloxide::prelude::*;
+#[cfg(feature = "telegram")]
+use tokio::runtime::Handle;
 
 /// Category statistics for single item
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,13 +79,27 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
     storage.get(item).map(|s| -> &'a str { &s[0].category })
 }
 
+/// Request category from user via telegram interface
+#[cfg(feature = "telegram")]
+pub fn get_category_from_tg(
+    item: &str,
+    storage: &mut CatStats,
+    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
+) -> String {
+    if bot_is_running() {
+        let future = async move { input_category_from_tg(item, &storage, &ctx).await };
+        if let Ok(handle) = Handle::try_current() {
+            tokio::task::block_in_place(move || handle.block_on(future))
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    }
+}
+
 /// Choose proper category or ask user
 pub fn get_category(item: &str, storage: &mut CatStats) -> String {
-    #[cfg(feature = "telegram")]
-    if bot_is_running() {
-        return input_category_from_tg(item, &storage);
-    };
-
     let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
     if istty {
         let topcat = match get_top_category(item, storage) {

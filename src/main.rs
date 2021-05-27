@@ -57,10 +57,14 @@ fn main() {
         .build();
 
     if let Some(filename) = &args.filename {
-        let t = convert::convert(filename, &args.memo, &mut user, &acc).unwrap();
+        let cat = &|item: &str, stats: &mut categories::CatStats| -> String {
+            categories::get_category(&item, stats)
+        };
+        let t = convert::convert(filename, &args.memo, &mut user, &acc, &cat).unwrap();
         print!("{}", acc.to_string());
         println!("{}", t.to_string());
     }
+
     #[cfg(feature = "tv")]
     {
         ui::run_tv();
