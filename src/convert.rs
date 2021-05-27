@@ -31,16 +31,21 @@ mod tests {
 }
 
 /// Generate set of QIF Splits from a Purchase items
-pub fn gen_splits<F>(items: &[receipt::Item], cs: &mut CatStats, categorizer: F) -> Vec<Split>
+pub fn gen_splits<F>(
+    items: &[receipt::Item],
+    cs: &mut CatStats,
+    accounts: &[String],
+    categorizer: F,
+) -> Vec<Split>
 where
-    F: Fn(&str, &mut CatStats) -> String,
+    F: Fn(&str, &mut CatStats, &[String]) -> String,
 {
     let mut result: Vec<Split> = Vec::new();
     for i in items.iter() {
         let t = Split::new()
             .memo(i.name.as_str())
             .amount(-i.sum)
-            .category(&categorizer(i.name.as_str(), cs))
+            .category(&categorizer(i.name.as_str(), cs, accounts))
             .build();
 
         result.push(t);
@@ -101,9 +106,14 @@ pub fn convert<'a, F>(
     categorizer: F,
 ) -> Result<Transaction<'a>, String>
 where
-    F: Fn(&str, &mut CatStats) -> String,
+    F: Fn(&str, &mut CatStats, &[String]) -> String,
 {
     let purchase = read_file(filename);
-    let splits = gen_splits(&purchase.items, &mut user.catmap, categorizer);
+    let splits = gen_splits(
+        &purchase.items,
+        &mut user.catmap,
+        &user.accounts,
+        categorizer,
+    );
     gen_trans(&acc, purchase.date(), purchase.total_sum(), memo, splits)
 }

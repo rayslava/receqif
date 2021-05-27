@@ -83,7 +83,7 @@ async fn convert_file(
     log::info!("Got file");
     for i in non_cat_items(&jsonfile, &user) {
         log::info!("Message about {}", i);
-        let newcat = input_category_from_tg(&i, &user.catmap, &ctx).await;
+        let newcat = input_category_from_tg(&i, &user.catmap, &user.accounts, &ctx).await;
         ctx.answer(format!("{} is set to {}", i, newcat))
             .await
             .unwrap();
@@ -93,8 +93,9 @@ async fn convert_file(
         .account_type(AccountType::Cash)
         .build();
 
-    let cat =
-        &|item: &str, stats: &mut CatStats| -> String { get_category_from_tg(&item, stats, &ctx) };
+    let cat = &|item: &str, stats: &mut CatStats, accounts: &[String]| -> String {
+        get_category_from_tg(&item, stats, accounts, &ctx)
+    };
     let t = convert(jsonfile, "Test", user, &acc, cat)?;
     file.write(acc.to_string().as_bytes()).await?;
     file.write(t.to_string().as_bytes()).await?;
@@ -109,10 +110,16 @@ pub fn bot_is_running() -> bool {
 #[cfg(feature = "telegram")]
 pub async fn input_category_from_tg(
     item: &str,
-    categories: &CatStats,
+    _cats: &CatStats,
+    accounts: &[String],
     ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
+    log::info!("{:?}", accounts);
+    let keyboard = InlineKeyboardMarkup::default().append_row(accounts.iter().map(|line| {
+        InlineKeyboardButton::new(line, InlineKeyboardButtonKind::CallbackData(line.into()))
+    }));
     ctx.answer(format!("Input category for {}", item))
+        .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
         .await
         .unwrap();
     String::new()

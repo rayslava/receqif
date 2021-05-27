@@ -69,8 +69,8 @@ fn main() {
         .build();
 
     if let Some(filename) = &args.filename {
-        let cat = &|item: &str, stats: &mut categories::CatStats| -> String {
-            categories::get_category(&item, stats)
+        let cat = &|item: &str, stats: &mut categories::CatStats, acc: &[String]| -> String {
+            categories::get_category(&item, stats, acc)
         };
         let t = convert::convert(filename, &args.memo, &mut user, &acc, &cat).unwrap();
         print!("{}", acc.to_string());

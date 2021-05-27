@@ -84,10 +84,11 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
 pub fn get_category_from_tg(
     item: &str,
     storage: &mut CatStats,
+    accounts: &[String],
     ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
     if bot_is_running() {
-        let future = async move { input_category_from_tg(item, &storage, &ctx).await };
+        let future = async move { input_category_from_tg(item, &storage, &accounts, &ctx).await };
         if let Ok(handle) = Handle::try_current() {
             tokio::task::block_in_place(move || handle.block_on(future))
         } else {
@@ -99,14 +100,18 @@ pub fn get_category_from_tg(
 }
 
 /// Choose proper category or ask user
-pub fn get_category(item: &str, storage: &mut CatStats) -> String {
+pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> String {
     let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
     if istty {
         let topcat = match get_top_category(item, storage) {
             Some(cat) => String::from(cat),
             None => String::new(),
         };
-        let cat = input_category(item, &topcat);
+        let cats: Vec<&String> = accounts
+            .iter()
+            .filter(|acc| acc.contains("Expense:"))
+            .collect();
+        let cat = input_category(item, &topcat, &cats);
         if cat.is_empty() {
             topcat
         } else {
