@@ -3,13 +3,17 @@
 use crate::categories::{get_category_from_tg, CatStats};
 use crate::convert::{convert, non_cat_items};
 use crate::user::User;
+
 use derive_more::From;
 use qif_generator::{account::Account, account::AccountType};
 use std::sync::atomic::{AtomicBool, Ordering};
 use teloxide::types::*;
+use teloxide::{
+    dispatching::dialogue::{serializer::Bincode, InMemStorage, Storage},
+    DownloadError, RequestError,
+};
 use teloxide::{net::Download, types::File as TgFile, Bot};
 use teloxide::{prelude::*, utils::command::BotCommand};
-use teloxide::{DownloadError, RequestError};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -24,15 +28,15 @@ pub async fn bot() {
 #[cfg(feature = "telegram")]
 #[derive(Debug, Error, From)]
 enum FileReceiveError {
-    /// Download process error
-    #[error("File download error: {0}")]
-    Download(#[source] DownloadError),
     /// Telegram request error
     #[error("Web request error: {0}")]
     Request(#[source] RequestError),
     /// Io error while writing file
     #[error("An I/O error: {0}")]
     Io(#[source] std::io::Error),
+    /// Download error while getting file from telegram
+    #[error("File download error: {0}")]
+    Download(#[source] DownloadError),
 }
 
 /// Possible error while receiving a file
@@ -133,6 +137,128 @@ pub async fn input_category_from_tg(
     String::new()
 }
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Transition, From, Serialize, Deserialize)]
+pub enum Dialogue {
+    Start(StartState),
+    HaveNumber(HaveNumberState),
+}
+
+impl Default for Dialogue {
+    fn default() -> Self {
+        Self::Start(StartState)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct StartState;
+
+#[derive(Serialize, Deserialize)]
+pub struct HaveNumberState {
+    pub number: i32,
+}
+
+#[teloxide(subtransition)]
+async fn start(
+    state: StartState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    ans: String,
+) -> TransitionOut<Dialogue> {
+    if let Ok(number) = ans.parse() {
+        cx.answer(format!(
+            "Remembered number {}. Now use /get or /reset",
+            number
+        ))
+        .await?;
+        next(HaveNumberState { number })
+    } else {
+        cx.answer("Please, send me a number").await?;
+        next(state)
+    }
+}
+
+#[teloxide(subtransition)]
+async fn have_number(
+    state: HaveNumberState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    ans: String,
+) -> TransitionOut<Dialogue> {
+    let num = state.number;
+
+    if ans.starts_with("/get") {
+        cx.answer(format!("Here is your number: {}", num)).await?;
+        next(state)
+    } else if ans.starts_with("/reset") {
+        cx.answer("Resetted number").await?;
+        next(StartState)
+    } else {
+        cx.answer("Please, send /get or /reset").await?;
+        next(state)
+    }
+}
+
+type StorageError = <InMemStorage<Bincode> as Storage<Dialogue>>::Error;
+
+#[derive(Debug, Error)]
+enum Error {
+    #[error("error from Telegram: {0}")]
+    TelegramError(#[from] RequestError),
+}
+
+type In = DialogueWithCx<AutoSend<Bot>, Message, Dialogue, StorageError>;
+
+async fn handle_message(
+    cx: UpdateWithCx<AutoSend<Bot>, Message>,
+    dialogue: Dialogue,
+) -> TransitionOut<Dialogue> {
+    match cx.update.text().map(ToOwned::to_owned) {
+        None => {
+            let update = &cx.update;
+            if let MessageKind::Common(msg) = &update.kind {
+                if let MediaKind::Document(doc) = &msg.media_kind {
+                    if let Ok(newfile) =
+                        download_file(&cx.requester.inner(), &doc.document.file_id).await
+                    {
+                        cx.answer(format!("File received: {:} ", newfile)).await?;
+                        if let Some(tguser) = cx.update.from() {
+                            let mut user = User::new(tguser.id, &None);
+                            cx.answer(format!("Created user: {:} ", tguser.id)).await?;
+                            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
+                                cx.answer(format!("File converted into: {:} ", result))
+                                    .await?;
+                            }
+                        }
+                    }
+
+                    cx.answer_dice().await?;
+                } else if let Some(line) = cx.update.text() {
+                    if let Ok(command) = Command::parse(line, "tgqif") {
+                        match command {
+                            Command::Help => {
+                                cx.answer(Command::descriptions()).send().await?;
+                            }
+                            Command::Start => {
+                                if let Some(user) = cx.update.from() {
+                                    cx.answer(format!(
+                                        "You registered as @{} with id {}.",
+                                        user.first_name, user.id
+                                    ))
+                                    .await?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            respond(());
+            //            cx.answer("Send me a text message.").await?;
+            next(dialogue)
+        }
+        Some(ans) => dialogue.react(cx, ans).await,
+    }
+}
+
 #[cfg(feature = "telegram")]
 async fn run() {
     teloxide::enable_logging!();
@@ -142,52 +268,17 @@ async fn run() {
     let bot = Bot::from_env().auto_send();
 
     // TODO: Add Dispatcher to process UpdateKinds
-    teloxide::repl(bot, |message| async move {
-        let update = &message.update;
-        if let MessageKind::Common(msg) = &update.kind {
-            if let MediaKind::Document(doc) = &msg.media_kind {
-                if let Ok(newfile) =
-                    download_file(&message.requester.inner(), &doc.document.file_id).await
-                {
-                    message
-                        .answer(format!("File received: {:} ", newfile))
-                        .await?;
-                    if let Some(tguser) = message.update.from() {
-                        let mut user = User::new(tguser.id, &None);
-                        message
-                            .answer(format!("Created user: {:} ", tguser.id))
-                            .await?;
-                        if let Ok(result) = convert_file(&newfile, &mut user, &message).await {
-                            message
-                                .answer(format!("File converted into: {:} ", result))
-                                .await?;
-                        }
-                    }
-                }
-
-                message.answer_dice().await?;
-            } else if let Some(line) = message.update.text() {
-                if let Ok(command) = Command::parse(line, "tgqif") {
-                    match command {
-                        Command::Help => {
-                            message.answer(Command::descriptions()).send().await?;
-                        }
-                        Command::Start => {
-                            if let Some(user) = message.update.from() {
-                                message
-                                    .answer(format!(
-                                        "You registered as @{} with id {}.",
-                                        user.first_name, user.id
-                                    ))
-                                    .await?;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        respond(())
-    })
-    .await;
+    Dispatcher::new(bot)
+        .messages_handler(DialogueDispatcher::with_storage(
+            |DialogueWithCx { cx, dialogue }: In| async move {
+                let dialogue = dialogue.expect("std::convert::Infallible");
+                handle_message(cx, dialogue)
+                    .await
+                    .expect("Something wrong with the bot!")
+            },
+            InMemStorage::new(),
+        ))
+        .dispatch()
+        .await;
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
