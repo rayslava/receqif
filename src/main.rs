@@ -57,7 +57,7 @@ fn main() {
     }
 
     #[cfg(feature = "tv")]
-    {
+    if args.ui {
         ui::run_tv();
         return;
     }

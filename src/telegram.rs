@@ -9,7 +9,7 @@ use qif_generator::{account::Account, account::AccountType};
 use std::sync::atomic::{AtomicBool, Ordering};
 use teloxide::types::*;
 use teloxide::{
-    dispatching::dialogue::{serializer::Bincode, InMemStorage, Storage},
+    dispatching::dialogue::{InMemStorage, Storage},
     DownloadError, RequestError,
 };
 use teloxide::{net::Download, types::File as TgFile, Bot};
@@ -137,9 +137,7 @@ pub async fn input_category_from_tg(
     String::new()
 }
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Transition, From, Serialize, Deserialize)]
+#[derive(Transition, From)]
 pub enum Dialogue {
     Start(StartState),
     HaveNumber(HaveNumberState),
@@ -151,10 +149,8 @@ impl Default for Dialogue {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct StartState;
 
-#[derive(Serialize, Deserialize)]
 pub struct HaveNumberState {
     pub number: i32,
 }
@@ -198,7 +194,7 @@ async fn have_number(
     }
 }
 
-type StorageError = <InMemStorage<Bincode> as Storage<Dialogue>>::Error;
+type StorageError = <InMemStorage<Dialogue> as Storage<Dialogue>>::Error;
 
 #[derive(Debug, Error)]
 enum Error {
@@ -230,8 +226,6 @@ async fn handle_message(
                             }
                         }
                     }
-
-                    cx.answer_dice().await?;
                 } else if let Some(line) = cx.update.text() {
                     if let Ok(command) = Command::parse(line, "tgqif") {
                         match command {
@@ -251,8 +245,6 @@ async fn handle_message(
                     }
                 }
             }
-            respond(());
-            //            cx.answer("Send me a text message.").await?;
             next(dialogue)
         }
         Some(ans) => dialogue.react(cx, ans).await,

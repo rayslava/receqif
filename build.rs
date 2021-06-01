@@ -42,6 +42,7 @@ fn main() {
             .file("extern/ui.cpp")
             .flag("-Wno-unknown-pragmas")
             .flag("-Wno-reorder")
+            .flag("-Wno-extra")
             .include("extern/tvision/include")
             .compile("libui.a");
 
