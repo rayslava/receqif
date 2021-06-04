@@ -21,7 +21,7 @@ struct Cli {
     #[structopt(short, long)]
     database: Option<String>,
 
-    #[structopt(short, long, default_value = "New")]
+    #[structopt(long, default_value = "New")]
     memo: String,
 
     /// Run telegram bot
@@ -37,6 +37,14 @@ struct Cli {
     /// The path to the file to read
     #[structopt(required_unless_one = &["telegram", "ui"])]
     filename: Option<String>,
+
+    /// Account name
+    #[structopt(long, default_value = "Wallet")]
+    account: String,
+
+    /// Account type
+    #[structopt(long, parse(try_from_str), default_value = "Cash")]
+    account_type: AccountType,
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -64,8 +72,8 @@ fn main() {
 
     // If program is used as command-line tool
     let acc = Account::new()
-        .name("Wallet")
-        .account_type(AccountType::Cash)
+        .name(&args.account)
+        .account_type(args.account_type)
         .build();
 
     if let Some(filename) = &args.filename {
