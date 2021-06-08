@@ -85,9 +85,9 @@ async fn convert_file(
     log::info!("Converting file into {}", filepath);
     let mut file = File::create(&filepath).await?;
     log::info!("Got file");
-    for i in non_cat_items(&jsonfile, &user) {
+    for i in non_cat_items(jsonfile, user) {
         log::info!("Message about {}", i);
-        let newcat = input_category_from_tg(&i, &user.catmap, &user.accounts, &ctx).await;
+        let newcat = input_category_from_tg(&i, &user.catmap, &user.accounts, ctx).await;
         ctx.answer(format!("{} is set to {}", i, newcat))
             .await
             .unwrap();
@@ -98,7 +98,7 @@ async fn convert_file(
         .build();
 
     let cat = &|item: &str, stats: &mut CatStats, accounts: &[String]| -> String {
-        get_category_from_tg(&item, stats, accounts, &ctx)
+        get_category_from_tg(item, stats, accounts, ctx)
     };
     let t = convert(jsonfile, "Test", user, &acc, cat)?;
     file.write(acc.to_string().as_bytes()).await?;
@@ -214,7 +214,7 @@ async fn handle_message(
             if let MessageKind::Common(msg) = &update.kind {
                 if let MediaKind::Document(doc) = &msg.media_kind {
                     if let Ok(newfile) =
-                        download_file(&cx.requester.inner(), &doc.document.file_id).await
+                        download_file(cx.requester.inner(), &doc.document.file_id).await
                     {
                         cx.answer(format!("File received: {:} ", newfile)).await?;
                         if let Some(tguser) = cx.update.from() {

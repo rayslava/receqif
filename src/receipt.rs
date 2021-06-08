@@ -90,7 +90,7 @@ struct Input {
 
 pub fn parse_purchase(line: &str) -> Purchase {
     // TODO: Check if several receipts are possible
-    let receipt: Vec<Input> = serde_json::from_str(&line).unwrap();
+    let receipt: Vec<Input> = serde_json::from_str(line).unwrap();
     Purchase {
         sum: receipt[0].query.sum,
         date: receipt[0].query.date,

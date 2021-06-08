@@ -115,5 +115,5 @@ where
         &user.accounts,
         categorizer,
     );
-    gen_trans(&acc, purchase.date(), purchase.total_sum(), memo, splits)
+    gen_trans(acc, purchase.date(), purchase.total_sum(), memo, splits)
 }

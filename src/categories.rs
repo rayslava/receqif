@@ -88,7 +88,7 @@ pub fn get_category_from_tg(
     ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
     if bot_is_running() {
-        let future = async move { input_category_from_tg(item, &storage, &accounts, &ctx).await };
+        let future = async move { input_category_from_tg(item, storage, accounts, ctx).await };
         if let Ok(handle) = Handle::try_current() {
             tokio::task::block_in_place(move || handle.block_on(future))
         } else {
@@ -115,7 +115,7 @@ pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> 
         if cat.is_empty() {
             topcat
         } else {
-            assign_category(&item, &cat, storage);
+            assign_category(item, &cat, storage);
             cat
         }
     } else {
