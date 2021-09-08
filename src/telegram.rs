@@ -59,6 +59,9 @@ enum Command {
 
     #[command(description = "Register new user in bot.")]
     Start,
+
+    #[command(description = "Delete account.")]
+    Delete,
 }
 
 #[cfg(feature = "telegram")]
@@ -139,13 +142,15 @@ pub async fn input_category_from_tg(
 
 #[derive(Transition, From)]
 pub enum Dialogue {
-    Start(StartState),
-    HaveNumber(HaveNumberState),
+    NewJson(NewJsonState),
+    CategorySelect(CategorySelectState),
+    SubCategorySelect(SubCategorySelectState),
+    Ready(QIFReadyState),
 }
 
 impl Default for Dialogue {
     fn default() -> Self {
-        Self::Start(StartState)
+        Self::NewJson(NewJsonState)
     }
 }
 
@@ -155,43 +160,73 @@ pub struct HaveNumberState {
     pub number: i32,
 }
 
+pub struct NewJsonState;
+
+pub struct CategorySelectState {
+    pub item: String,
+}
+
+pub struct SubCategorySelectState {
+    pub item: String,
+}
+
+pub struct QIFReadyState;
+
 #[teloxide(subtransition)]
-async fn start(
-    state: StartState,
+async fn new_json(
+    state: NewJsonState,
     cx: TransitionIn<AutoSend<Bot>>,
-    ans: String,
+    file_id: String,
 ) -> TransitionOut<Dialogue> {
-    if let Ok(number) = ans.parse() {
-        cx.answer(format!(
-            "Remembered number {}. Now use /get or /reset",
-            number
-        ))
-        .await?;
-        next(HaveNumberState { number })
+    if let Ok(newfile) = download_file(cx.requester.inner(), &file_id).await {
+        cx.answer(format!("File received: {:} ", newfile)).await?;
+        if let Some(tguser) = cx.update.from() {
+            let mut user = User::new(tguser.id, &None);
+            cx.answer(format!("Created user: {:} ", tguser.id)).await?;
+            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
+                cx.answer(format!("File converted into: {:} ", result))
+                    .await?;
+                next(CategorySelectState { item: file_id })
+            } else {
+                next(state)
+            }
+        } else {
+            next(state)
+        }
     } else {
-        cx.answer("Please, send me a number").await?;
+        cx.answer("Waiting for a JSON receipt").await?;
         next(state)
     }
 }
 
 #[teloxide(subtransition)]
-async fn have_number(
-    state: HaveNumberState,
+async fn category_select(
+    state: CategorySelectState,
     cx: TransitionIn<AutoSend<Bot>>,
-    ans: String,
+    item: String,
 ) -> TransitionOut<Dialogue> {
-    let num = state.number;
+    cx.answer("Selecting category").await?;
+    next(state)
+}
 
-    if ans.starts_with("/get") {
-        cx.answer(format!("Here is your number: {}", num)).await?;
-        next(state)
-    } else if ans.starts_with("/reset") {
-        cx.answer("Resetted number").await?;
-        next(StartState)
-    } else {
-        cx.answer("Please, send /get or /reset").await?;
-        next(state)
-    }
+#[teloxide(subtransition)]
+async fn subcategory_select(
+    state: SubCategorySelectState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    item: String,
+) -> TransitionOut<Dialogue> {
+    cx.answer("Selecting subcategory").await?;
+    next(state)
+}
+
+#[teloxide(subtransition)]
+async fn subcategory_select(
+    state: QIFReadyState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    item: String,
+) -> TransitionOut<Dialogue> {
+    cx.answer("QIF is ready").await?;
+    next(state)
 }
 
 type StorageError = <InMemStorage<Dialogue> as Storage<Dialogue>>::Error;
@@ -210,44 +245,48 @@ async fn handle_message(
 ) -> TransitionOut<Dialogue> {
     match cx.update.text().map(ToOwned::to_owned) {
         None => {
-            let update = &cx.update;
-            if let MessageKind::Common(msg) = &update.kind {
-                if let MediaKind::Document(doc) = &msg.media_kind {
-                    if let Ok(newfile) =
-                        download_file(cx.requester.inner(), &doc.document.file_id).await
-                    {
-                        cx.answer(format!("File received: {:} ", newfile)).await?;
-                        if let Some(tguser) = cx.update.from() {
-                            let mut user = User::new(tguser.id, &None);
-                            cx.answer(format!("Created user: {:} ", tguser.id)).await?;
-                            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
-                                cx.answer(format!("File converted into: {:} ", result))
-                                    .await?;
-                            }
+            let mut is_file = false;
+            let mut file_id: String = "".to_string();
+            {
+                let update = &cx.update;
+                if let MessageKind::Common(msg) = &update.kind {
+                    if let MediaKind::Document(doc) = &msg.media_kind {
+                        is_file = true;
+                        file_id = doc.document.file_id.clone();
+                    }
+                }
+            }
+            if is_file {
+                Ok(dialogue.react(cx, file_id).await?)
+            } else {
+                next(dialogue)
+            }
+        }
+        Some(ans) => {
+            if let Ok(command) = Command::parse(&ans, "tgqif") {
+                match command {
+                    Command::Help => {
+                        cx.answer(Command::descriptions()).send().await?;
+                    }
+                    Command::Start => {
+                        if let Some(user) = cx.update.from() {
+                            cx.answer(format!(
+                                "You registered as @{} with id {}.",
+                                user.first_name, user.id
+                            ))
+                            .await?;
                         }
                     }
-                } else if let Some(line) = cx.update.text() {
-                    if let Ok(command) = Command::parse(line, "tgqif") {
-                        match command {
-                            Command::Help => {
-                                cx.answer(Command::descriptions()).send().await?;
-                            }
-                            Command::Start => {
-                                if let Some(user) = cx.update.from() {
-                                    cx.answer(format!(
-                                        "You registered as @{} with id {}.",
-                                        user.first_name, user.id
-                                    ))
-                                    .await?;
-                                }
-                            }
+                    Command::Delete => {
+                        if let Some(user) = cx.update.from() {
+                            cx.answer(format!("Deleting data for user {}", user.id))
+                                .await?;
                         }
                     }
                 }
             }
             next(dialogue)
         }
-        Some(ans) => dialogue.react(cx, ans).await,
     }
 }
 
