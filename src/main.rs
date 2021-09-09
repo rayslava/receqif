@@ -9,6 +9,8 @@ mod import;
 mod receipt;
 #[cfg(feature = "telegram")]
 mod telegram;
+#[cfg(feature = "telegram")]
+mod tgusermanager;
 mod ui;
 mod user;
 

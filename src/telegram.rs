@@ -2,6 +2,7 @@
 
 use crate::categories::{get_category_from_tg, CatStats};
 use crate::convert::{convert, non_cat_items};
+use crate::tgusermanager::{user_manager, TgManagerCommand};
 use crate::user::User;
 
 use derive_more::From;
@@ -17,6 +18,7 @@ use teloxide::{prelude::*, utils::command::BotCommand};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::{mpsc, oneshot};
 
 #[cfg(feature = "telegram")]
 #[tokio::main]
@@ -62,6 +64,9 @@ enum Command {
 
     #[command(description = "Delete account.")]
     Delete,
+
+    #[command(description = "Request something")]
+    Request,
 }
 
 #[cfg(feature = "telegram")]
@@ -154,12 +159,6 @@ impl Default for Dialogue {
     }
 }
 
-pub struct StartState;
-
-pub struct HaveNumberState {
-    pub number: i32,
-}
-
 pub struct NewJsonState;
 
 pub struct CategorySelectState {
@@ -205,7 +204,8 @@ async fn category_select(
     cx: TransitionIn<AutoSend<Bot>>,
     item: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer("Selecting category").await?;
+    cx.answer(format!("Selecting category for {}", item))
+        .await?;
     next(state)
 }
 
@@ -215,7 +215,8 @@ async fn subcategory_select(
     cx: TransitionIn<AutoSend<Bot>>,
     item: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer("Selecting subcategory").await?;
+    cx.answer(format!("Selecting subcategory for {}", item))
+        .await?;
     next(state)
 }
 
@@ -225,7 +226,7 @@ async fn subcategory_select(
     cx: TransitionIn<AutoSend<Bot>>,
     item: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer("QIF is ready").await?;
+    cx.answer(format!("QIF is ready for {}", item)).await?;
     next(state)
 }
 
@@ -242,6 +243,7 @@ type In = DialogueWithCx<AutoSend<Bot>, Message, Dialogue, StorageError>;
 async fn handle_message(
     cx: UpdateWithCx<AutoSend<Bot>, Message>,
     dialogue: Dialogue,
+    tx: mpsc::Sender<TgManagerCommand>,
 ) -> TransitionOut<Dialogue> {
     match cx.update.text().map(ToOwned::to_owned) {
         None => {
@@ -283,6 +285,24 @@ async fn handle_message(
                                 .await?;
                         }
                     }
+                    Command::Request => {
+                        let (send, recv) = oneshot::channel();
+                        if tx
+                            .send(TgManagerCommand::Get {
+                                user_id: ans,
+                                reply_to: send,
+                            })
+                            .await
+                            .is_err()
+                        {
+                            cx.answer("Can't request data").await?;
+                        };
+
+                        match recv.await {
+                            Ok(value) => cx.answer(format!("I have an answer: {} ", value)).await?,
+                            Err(_) => cx.answer("No data available").await?,
+                        };
+                    }
                 }
             }
             next(dialogue)
@@ -295,21 +315,27 @@ async fn run() {
     teloxide::enable_logging!();
     log::info!("Starting telegram bot");
     IS_RUNNING.store(true, Ordering::SeqCst);
+    let (tx, mut rx) = mpsc::channel(32);
+
+    let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
     let bot = Bot::from_env().auto_send();
-
     // TODO: Add Dispatcher to process UpdateKinds
     Dispatcher::new(bot)
         .messages_handler(DialogueDispatcher::with_storage(
-            |DialogueWithCx { cx, dialogue }: In| async move {
-                let dialogue = dialogue.expect("std::convert::Infallible");
-                handle_message(cx, dialogue)
-                    .await
-                    .expect("Something wrong with the bot!")
+            move |DialogueWithCx { cx, dialogue }: In| {
+                let _tx = tx.clone();
+                async move {
+                    let dialogue = dialogue.expect("std::convert::Infallible");
+                    handle_message(cx, dialogue, _tx)
+                        .await
+                        .expect("Something wrong with the bot!")
+                }
             },
             InMemStorage::new(),
         ))
         .dispatch()
         .await;
+    drop(manager);
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
