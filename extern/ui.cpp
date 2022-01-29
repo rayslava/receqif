@@ -47,7 +47,7 @@ public:
   void draw();
   void setState(ushort aState, Boolean enable);
   void scrollDraw();
-  Boolean valid(ushort command);
+  Boolean valid(ushort command) const;
 
 private:
   virtual const char *streamableName() const { return name; }
@@ -68,7 +68,7 @@ public:
 protected:
   virtual void sizeLimits(TPoint& min, TPoint& max) override {
     TWindow::sizeLimits(min, max);
-    min.x = size.x/2+10;
+    min.x = size.x / 2 + 10;
   };
 
 };
@@ -122,7 +122,7 @@ void TItemViewer::setState(ushort aState, Boolean enable) {
     setLimit(limit.x, limit.y);
 }
 
-Boolean TItemViewer::valid(ushort) { return isValid; }
+Boolean TItemViewer::valid(ushort) const { return isValid; }
 
 void *TItemViewer::read(ipstream &is) {
   char *fName = NULL;

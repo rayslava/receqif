@@ -109,7 +109,7 @@ pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> 
         };
         let cats: Vec<&String> = accounts
             .iter()
-            .filter(|acc| acc.contains("Expense:"))
+            .filter(|acc| acc.contains("Expenses:"))
             .collect();
         let cat = input_category(item, &topcat, &cats);
         if cat.is_empty() {

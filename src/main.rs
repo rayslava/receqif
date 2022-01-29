@@ -1,5 +1,7 @@
 use qif_generator::account::{Account, AccountType};
 
+use log::LevelFilter;
+use pretty_env_logger;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -51,6 +53,8 @@ struct Cli {
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
+    pretty_env_logger::init();
+    log::debug!("Log started");
     let args = Cli::from_args();
 
     #[cfg(feature = "telegram")]
