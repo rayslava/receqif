@@ -1,7 +1,5 @@
 use qif_generator::account::{Account, AccountType};
 
-use log::LevelFilter;
-use pretty_env_logger;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -87,7 +85,7 @@ fn main() {
             categories::get_category(item, stats, acc)
         };
         let t = convert::convert(filename, &args.memo, &mut user, &acc, &cat).unwrap();
-        print!("{}", acc.to_string());
-        println!("{}", t.to_string());
+        print!("{}", acc);
+        println!("{}", t);
     }
 }
