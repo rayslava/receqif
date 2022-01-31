@@ -9,7 +9,7 @@ pub enum TgManagerCommand {
 }
 
 pub async fn user_manager(rx: &mut mpsc::Receiver<TgManagerCommand>) {
-    log::info!("Reqest came");
+    log::info!("Request came");
     while let Some(cmd) = rx.recv().await {
         use TgManagerCommand::*;
         log::info!("Command received");

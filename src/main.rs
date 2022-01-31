@@ -51,7 +51,6 @@ struct Cli {
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
-    pretty_env_logger::init();
     log::debug!("Log started");
     let args = Cli::from_args();
 

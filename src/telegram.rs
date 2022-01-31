@@ -1,13 +1,17 @@
-// This bot throws a dice on each incoming message.
-
 use crate::categories::{get_category_from_tg, CatStats};
 use crate::convert::{convert, non_cat_items};
 use crate::tgusermanager::{user_manager, TgManagerCommand};
 use crate::user::User;
+use std::error::Error as StdError;
 
 use derive_more::From;
 use qif_generator::{account::Account, account::AccountType};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use teloxide::types::*;
 use teloxide::{
     dispatching::dialogue::{InMemStorage, Storage},
@@ -19,6 +23,7 @@ use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, oneshot};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[cfg(feature = "telegram")]
 #[tokio::main]
@@ -124,7 +129,7 @@ pub async fn input_category_from_tg(
     item: &str,
     _cats: &CatStats,
     accounts: &[String],
-    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
+    cx: &UpdateWithCx<AutoSend<Bot>, Message>,
 ) -> String {
     log::info!("{:?}", accounts);
     let keyboard = InlineKeyboardMarkup::default().append_row(
@@ -138,62 +143,122 @@ pub async fn input_category_from_tg(
                 )
             }),
     );
-    ctx.answer(format!("Input category for {}", item))
+    cx.answer(format!("Input category for {}", item))
         .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
         .await
         .unwrap();
     String::new()
 }
 
-#[derive(Transition, From)]
+#[derive(Transition, From, Clone)]
 pub enum Dialogue {
+    Idle(IdleState),
     NewJson(NewJsonState),
     CategorySelect(CategorySelectState),
     SubCategorySelect(SubCategorySelectState),
+    ItemReady(ItemReadyState),
     Ready(QIFReadyState),
 }
 
 impl Default for Dialogue {
     fn default() -> Self {
-        Self::NewJson(NewJsonState)
+        Self::Idle(IdleState)
     }
 }
 
-pub struct NewJsonState;
+#[derive(Clone)]
+pub struct IdleState;
 
+#[derive(Clone)]
+pub struct NewJsonState {
+    pub filename: String,
+}
+
+#[derive(Clone)]
 pub struct CategorySelectState {
+    pub filename: String,
     pub item: String,
 }
 
+#[derive(Clone)]
 pub struct SubCategorySelectState {
+    pub filename: String,
     pub item: String,
+    pub category: String,
 }
 
+#[derive(Clone)]
+pub struct ItemReadyState {
+    pub filename: String,
+    pub item: String,
+    pub fullcat: String,
+}
+
+#[derive(Clone)]
 pub struct QIFReadyState;
 
 #[teloxide(subtransition)]
 async fn new_json(
     state: NewJsonState,
     cx: TransitionIn<AutoSend<Bot>>,
-    file_id: String,
+    item: String,
 ) -> TransitionOut<Dialogue> {
+    log::info!("File {}", &state.filename);
+    let mut is_file = false;
+    let mut file_id: String = "".to_string();
+    {
+        let update = &cx.update;
+        if let MessageKind::Common(msg) = &update.kind {
+            if let MediaKind::Document(doc) = &msg.media_kind {
+                is_file = true;
+                file_id = String::from_str(&state.filename).unwrap_or("".to_string());
+            }
+        }
+    }
+    if is_file {
+        log::info!("File {} received", file_id);
+        cx.answer(format!("New file received!!!111 {}", file_id))
+            .await?;
+    } else {
+        cx.answer(format!("Unsupported media provided")).await?;
+    }
+
     if let Ok(newfile) = download_file(cx.requester.inner(), &file_id).await {
         cx.answer(format!("File received: {:} ", newfile)).await?;
         if let Some(tguser) = cx.update.from() {
-            let mut user = User::new(tguser.id, &None);
-            cx.answer(format!("Created user: {:} ", tguser.id)).await?;
-            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
-                cx.answer(format!("File converted into: {:} ", result))
-                    .await?;
-                next(CategorySelectState { item: file_id })
+            let user = User::new(tguser.id, &None);
+            cx.answer(format!("Active user: {:} ", tguser.id)).await?;
+            let filepath = format!("{}.qif", &newfile);
+            log::info!("Received file {}", &filepath);
+            let mut i = non_cat_items(&newfile, &user);
+            if let Some(item) = i.pop() {
+                log::info!("No category for {}", &item);
+                cx.answer(format!("Select category for {}", item)).await?;
+                next(CategorySelectState {
+                    filename: state.filename,
+                    item,
+                })
             } else {
+                log::info!("Empty state");
                 next(state)
             }
+
+        /*            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
+                        cx.answer(format!("File converted into: {:} ", result))
+                            .await?;
+                        next(CategorySelectState { item: file_id })
+
+                    } else {
+                        next(state)
+                    }
+        */
         } else {
+            log::info!("Empty state 2");
             next(state)
         }
     } else {
-        cx.answer("Waiting for a JSON receipt").await?;
+        log::info!("Newfile {} fail", item);
+        cx.answer("Waiting for a JSON receipt in new_json").await?;
         next(state)
     }
 }
@@ -202,31 +267,81 @@ async fn new_json(
 async fn category_select(
     state: CategorySelectState,
     cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
+    ans: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer(format!("Selecting category for {}", item))
+    let accounts = [
+        "Expenses:Alco".to_string(),
+        "Expenses:Groceries".to_string(),
+    ];
+    let keyboard = InlineKeyboardMarkup::default().append_row(
+        accounts
+            .iter()
+            .filter(|l| l.starts_with("Expenses:"))
+            .map(|line| {
+                InlineKeyboardButton::new(
+                    line.strip_prefix("Expenses:").unwrap(),
+                    InlineKeyboardButtonKind::CallbackData(line.into()),
+                )
+            }),
+    );
+
+    cx.answer(format!("Input category for {}", state.item))
+        .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
         .await?;
-    next(state)
+
+    next(SubCategorySelectState {
+        filename: state.filename,
+        item: state.item,
+        category: ans,
+    })
 }
 
 #[teloxide(subtransition)]
 async fn subcategory_select(
     state: SubCategorySelectState,
     cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
+    subcategory: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer(format!("Selecting subcategory for {}", item))
+    cx.answer(format!("Select subcategory for {}", state.item))
         .await?;
-    next(state)
+    next(ItemReadyState {
+        filename: state.filename,
+        item: state.item,
+        fullcat: format!("{}:{}", state.category, subcategory),
+    })
 }
 
 #[teloxide(subtransition)]
-async fn subcategory_select(
+async fn item_ready(
+    state: ItemReadyState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    item: String,
+) -> TransitionOut<Dialogue> {
+    cx.answer(format!(
+        "Item {} is ready for caterogy {}",
+        state.item, state.fullcat
+    ))
+    .await?;
+    next(QIFReadyState)
+}
+
+#[teloxide(subtransition)]
+async fn qif_ready(
     state: QIFReadyState,
     cx: TransitionIn<AutoSend<Bot>>,
     item: String,
 ) -> TransitionOut<Dialogue> {
     cx.answer(format!("QIF is ready for {}", item)).await?;
+    next(IdleState)
+}
+
+#[teloxide(subtransition)]
+async fn idling(
+    state: IdleState,
+    cx: TransitionIn<AutoSend<Bot>>,
+    item: String,
+) -> TransitionOut<Dialogue> {
+    cx.answer(format!("Waiting for json or command")).await?;
     next(state)
 }
 
@@ -245,69 +360,122 @@ async fn handle_message(
     dialogue: Dialogue,
     tx: mpsc::Sender<TgManagerCommand>,
 ) -> TransitionOut<Dialogue> {
-    match cx.update.text().map(ToOwned::to_owned) {
-        None => {
-            let mut is_file = false;
-            let mut file_id: String = "".to_string();
-            {
-                let update = &cx.update;
-                if let MessageKind::Common(msg) = &update.kind {
-                    if let MediaKind::Document(doc) = &msg.media_kind {
-                        is_file = true;
-                        file_id = doc.document.file_id.clone();
+    let ans = cx.update.text().map(ToOwned::to_owned);
+    match dialogue {
+        Dialogue::Idle(_) => {
+            match ans {
+                None => {
+                    log::info!("No text");
+                    let mut is_file = false;
+                    let mut file_id: String = "".to_string();
+                    {
+                        let update = &cx.update;
+                        if let MessageKind::Common(msg) = &update.kind {
+                            if let MediaKind::Document(doc) = &msg.media_kind {
+                                is_file = true;
+                                file_id = doc.document.file_id.clone();
+                            }
+                        }
+                    }
+                    if is_file {
+                        log::info!("File {} received", file_id);
+                        next(NewJsonState { filename: file_id })
+                    //	dialogue.react(cx, file_id).await
+                    } else {
+                        cx.answer(format!("Unsupported media provided")).await?;
+                        next(dialogue)
                     }
                 }
-            }
-            if is_file {
-                Ok(dialogue.react(cx, file_id).await?)
-            } else {
-                next(dialogue)
-            }
-        }
-        Some(ans) => {
-            if let Ok(command) = Command::parse(&ans, "tgqif") {
-                match command {
-                    Command::Help => {
-                        cx.answer(Command::descriptions()).send().await?;
-                    }
-                    Command::Start => {
-                        if let Some(user) = cx.update.from() {
-                            cx.answer(format!(
-                                "You registered as @{} with id {}.",
-                                user.first_name, user.id
-                            ))
-                            .await?;
-                        }
-                    }
-                    Command::Delete => {
-                        if let Some(user) = cx.update.from() {
-                            cx.answer(format!("Deleting data for user {}", user.id))
-                                .await?;
-                        }
-                    }
-                    Command::Request => {
-                        let (send, recv) = oneshot::channel();
-                        if tx
-                            .send(TgManagerCommand::Get {
-                                user_id: ans,
-                                reply_to: send,
-                            })
-                            .await
-                            .is_err()
-                        {
-                            cx.answer("Can't request data").await?;
-                        };
+                Some(ans) => {
+                    if let Ok(command) = Command::parse(&ans, "tgqif") {
+                        match command {
+                            Command::Help => {
+                                cx.answer(Command::descriptions()).send().await?;
+                                next(dialogue)
+                            }
+                            Command::Start => {
+                                if let Some(user) = cx.update.from() {
+                                    cx.answer(format!(
+                                        "You registered as @{} with id {}.",
+                                        user.first_name, user.id
+                                    ))
+                                    .await?;
+                                }
+                                next(dialogue)
+                            }
+                            Command::Delete => {
+                                if let Some(user) = cx.update.from() {
+                                    cx.answer(format!("Deleting data for user {}", user.id))
+                                        .await?;
+                                }
+                                next(dialogue)
+                            }
+                            Command::Request => {
+                                let (send, recv) = oneshot::channel();
+                                if tx
+                                    .send(TgManagerCommand::Get {
+                                        user_id: ans.clone(),
+                                        reply_to: send,
+                                    })
+                                    .await
+                                    .is_err()
+                                {
+                                    cx.answer("Can't request data").await?;
+                                };
 
-                        match recv.await {
-                            Ok(value) => cx.answer(format!("I have an answer: {} ", value)).await?,
-                            Err(_) => cx.answer("No data available").await?,
-                        };
+                                match recv.await {
+                                    Ok(value) => {
+                                        cx.answer(format!("I have an answer: {} ", value)).await?
+                                    }
+                                    Err(_) => cx.answer("No data available").await?,
+                                };
+                                next(dialogue)
+                            }
+                        }
+                    } else {
+                        next(dialogue)
                     }
                 }
             }
-            next(dialogue)
         }
+        _ => dialogue.react(cx, ans.unwrap_or(String::new())).await, //next(dialogue)
+                                                                     //	    dialogue.react(cx, ans).await
     }
+}
+
+/// When it receives a callback from a button it edits the message with all
+/// those buttons writing a text with the selected Debian version.
+async fn callback_handler(
+    cx: UpdateWithCx<AutoSend<Bot>, CallbackQuery>,
+    stor: Arc<InMemStorage<Dialogue>>,
+) -> Result<(), Box<dyn StdError + Send + Sync>>
+where
+{
+    let UpdateWithCx {
+        requester: bot,
+        update: query,
+    } = cx;
+
+    if let Some(version) = query.data {
+        let text = format!("{}", version);
+
+        match query.message {
+            Some(Message { id, chat, .. }) => {
+                //                bot.edit_message_text(chat.id, id, text).await?;
+                bot.send_message(chat.id, text).await?;
+            }
+            None => {
+                if let Some(id) = query.inline_message_id {
+                    //                    bot.edit_message_text_inline(dbg!(id), text).await?;
+                    bot.send_message(id, text).await?;
+                }
+            }
+        }
+
+        log::info!("You chose: {}", version);
+    }
+
+    Ok(())
 }
 
 #[cfg(feature = "telegram")]
@@ -319,23 +487,40 @@ async fn run() {
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
+    let storage = InMemStorage::new();
     let bot = Bot::from_env().auto_send();
     // TODO: Add Dispatcher to process UpdateKinds
-    Dispatcher::new(bot)
-        .messages_handler(DialogueDispatcher::with_storage(
-            move |DialogueWithCx { cx, dialogue }: In| {
-                let _tx = tx.clone();
-                async move {
-                    let dialogue = dialogue.expect("std::convert::Infallible");
-                    handle_message(cx, dialogue, _tx)
-                        .await
-                        .expect("Something wrong with the bot!")
+    {
+        let storage = storage.clone();
+        Dispatcher::new(bot)
+            .messages_handler(DialogueDispatcher::with_storage(
+                move |DialogueWithCx { cx, dialogue }: In| {
+                    let _tx = tx.clone();
+                    async move {
+                        let dialogue = dialogue.expect("std::convert::Infallible");
+                        handle_message(cx, dialogue, _tx)
+                            .await
+                            .expect("Something wrong with the bot!")
+                    }
+                },
+                storage.clone(),
+            ))
+            .callback_queries_handler({
+                let storage1 = Arc::clone(&storage);
+                move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
+                    let storage2 = Arc::clone(&storage1);
+                    UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
+                        let storage3 = Arc::clone(&storage2);
+                        |cx| async move {
+                            let storage4 = Arc::clone(&storage3);
+                            callback_handler(cx, storage4).await.log_on_error().await;
+                        }
+                    })
                 }
-            },
-            InMemStorage::new(),
-        ))
-        .dispatch()
-        .await;
+            })
+            .dispatch()
+            .await;
+    }
     drop(manager);
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
