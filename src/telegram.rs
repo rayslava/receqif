@@ -487,48 +487,37 @@ async fn run() {
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
-    let storage: Arc<InMemStorage<Dialogue>> = InMemStorage::new();
-
-    let storage_msg = storage.clone();
-    let storage_callback = storage.clone();
+    let storage = InMemStorage::new();
 
     let bot = Bot::from_env().auto_send();
     // TODO: Add Dispatcher to process UpdateKinds
-    {
-        let storage_msg = storage_msg.clone();
-        let storage_callback = storage_callback.clone();
-
-        Dispatcher::new(bot)
-            .messages_handler(DialogueDispatcher::with_storage(
-                move |DialogueWithCx { cx, dialogue }: In| {
-                    let _tx = tx.clone();
-                    async move {
-                        let dialogue = dialogue.expect("std::convert::Infallible");
-                        handle_message(cx, dialogue, _tx)
-                            .await
-                            .expect("Something wrong with the bot!")
-                    }
-                },
-                storage_msg,
-            ))
-            .callback_queries_handler({
-                let storage_callback = storage_callback.clone();
-                move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
-                    let storage_callback = storage_callback.clone();
-                    UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
-                        let storage_callback = storage_callback.clone();
-                        |cx| async move {
-                            callback_handler(cx, storage_callback.clone())
-                                .await
-                                .log_on_error()
-                                .await;
-                        }
-                    })
+    Dispatcher::new(bot)
+        .messages_handler(DialogueDispatcher::with_storage(
+            move |DialogueWithCx { cx, dialogue }: In| {
+                let _tx = tx.clone();
+                async move {
+                    let dialogue = dialogue.expect("std::convert::Infallible");
+                    handle_message(cx, dialogue, _tx)
+                        .await
+                        .expect("Something wrong with the bot!")
                 }
-            })
-            .dispatch()
-            .await;
-    }
+            },
+            storage.clone(),
+        ))
+        .callback_queries_handler({
+            move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
+                UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
+                    move |cx| {
+                        let storage = storage.clone();
+                        async move {
+                            callback_handler(cx, storage).await.log_on_error().await;
+                        }
+                    }
+                })
+            }
+        })
+        .dispatch()
+        .await;
     drop(manager);
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
