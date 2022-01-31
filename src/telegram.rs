@@ -487,11 +487,17 @@ async fn run() {
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
-    let storage = InMemStorage::new();
+    let storage: Arc<InMemStorage<Dialogue>> = InMemStorage::new();
+
+    let storage_msg = storage.clone();
+    let storage_callback = storage.clone();
+
     let bot = Bot::from_env().auto_send();
     // TODO: Add Dispatcher to process UpdateKinds
     {
-        let storage = storage.clone();
+        let storage_msg = storage_msg.clone();
+        let storage_callback = storage_callback.clone();
+
         Dispatcher::new(bot)
             .messages_handler(DialogueDispatcher::with_storage(
                 move |DialogueWithCx { cx, dialogue }: In| {
@@ -503,17 +509,19 @@ async fn run() {
                             .expect("Something wrong with the bot!")
                     }
                 },
-                storage.clone(),
+                storage_msg,
             ))
             .callback_queries_handler({
-                let storage1 = Arc::clone(&storage);
+                let storage_callback = storage_callback.clone();
                 move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
-                    let storage2 = Arc::clone(&storage1);
+                    let storage_callback = storage_callback.clone();
                     UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
-                        let storage3 = Arc::clone(&storage2);
+                        let storage_callback = storage_callback.clone();
                         |cx| async move {
-                            let storage4 = Arc::clone(&storage3);
-                            callback_handler(cx, storage4).await.log_on_error().await;
+                            callback_handler(cx, storage_callback.clone())
+                                .await
+                                .log_on_error()
+                                .await;
                         }
                     })
                 }
