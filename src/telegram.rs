@@ -1,4 +1,4 @@
-use crate::categories::{get_category_from_tg, CatStats};
+use crate::categories::CatStats;
 use crate::convert::{convert, non_cat_items};
 use crate::tgusermanager::{user_manager, TgManagerCommand};
 use crate::user::User;
@@ -14,11 +14,14 @@ use std::sync::{
 };
 use teloxide::types::*;
 use teloxide::{
-    dispatching::dialogue::{InMemStorage, Storage},
-    DownloadError, RequestError,
+    dispatching2::dialogue::{InMemStorage, Storage},
+    macros::DialogueState,
+    net::Download,
+    prelude2::*,
+    types::File as TgFile,
+    utils::command::BotCommand,
+    Bot, DownloadError, RequestError,
 };
-use teloxide::{net::Download, types::File as TgFile, Bot};
-use teloxide::{prelude::*, utils::command::BotCommand};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -78,16 +81,22 @@ enum Command {
 static IS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "telegram")]
-async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
+async fn download_file(
+    downloader: &AutoSend<Bot>,
+    file_id: &str,
+) -> Result<String, FileReceiveError> {
     let TgFile {
         file_id, file_path, ..
     } = downloader.get_file(file_id).send().await?;
+    log::info!("Attempt to download file");
     let filepath = format!("/tmp/{}", file_id);
+    log::info!("Path: {}", filepath);
     let mut file = File::create(&filepath).await?;
     downloader.download_file(&file_path, &mut file).await?;
     Ok(filepath)
 }
 
+/*
 #[cfg(feature = "telegram")]
 async fn convert_file(
     jsonfile: &str,
@@ -118,12 +127,12 @@ async fn convert_file(
     file.write(t.to_string().as_bytes()).await?;
     Ok(filepath)
 }
-
+*/
 #[cfg(feature = "telegram")]
 pub fn bot_is_running() -> bool {
     IS_RUNNING.load(Ordering::SeqCst)
 }
-
+/*
 #[cfg(feature = "telegram")]
 pub async fn input_category_from_tg(
     item: &str,
@@ -149,126 +158,120 @@ pub async fn input_category_from_tg(
         .unwrap();
     String::new()
 }
+*/
+#[derive(DialogueState, Clone)]
+#[handler_out(anyhow::Result<()>)]
+pub enum State {
+    #[handler(handle_idle)]
+    Idle,
 
-#[derive(Transition, From, Clone)]
-pub enum Dialogue {
-    Idle(IdleState),
-    NewJson(NewJsonState),
-    CategorySelect(CategorySelectState),
-    SubCategorySelect(SubCategorySelectState),
-    ItemReady(ItemReadyState),
-    Ready(QIFReadyState),
+    #[handler(handle_json)]
+    NewJson { filename: String },
+
+    #[handler(handle_category)]
+    CategorySelect { filename: String, item: String },
+
+    #[handler(handle_subcategory)]
+    SubCategorySelect {
+        filename: String,
+        item: String,
+        category: String,
+    },
+
+    #[handler(handle_item_ready)]
+    ItemReady {
+        filename: String,
+        item: String,
+        fullcat: String,
+    },
+
+    #[handler(handle_qif_ready)]
+    Ready,
 }
 
-impl Default for Dialogue {
+impl Default for State {
     fn default() -> Self {
-        Self::Idle(IdleState)
+        Self::Idle
     }
 }
 
-#[derive(Clone)]
-pub struct IdleState;
+type QIFDialogue = Dialogue<State, InMemStorage<State>>;
 
-#[derive(Clone)]
-pub struct NewJsonState {
-    pub filename: String,
+async fn handle_idle(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+) -> anyhow::Result<()> {
+    bot.send_message(msg.chat.id, "Upload your file").await?;
+    dialogue
+        .update(State::NewJson {
+            filename: "test".to_string(),
+        })
+        .await?;
+    Ok(())
 }
 
-#[derive(Clone)]
-pub struct CategorySelectState {
-    pub filename: String,
-    pub item: String,
-}
-
-#[derive(Clone)]
-pub struct SubCategorySelectState {
-    pub filename: String,
-    pub item: String,
-    pub category: String,
-}
-
-#[derive(Clone)]
-pub struct ItemReadyState {
-    pub filename: String,
-    pub item: String,
-    pub fullcat: String,
-}
-
-#[derive(Clone)]
-pub struct QIFReadyState;
-
-#[teloxide(subtransition)]
-async fn new_json(
-    state: NewJsonState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
-) -> TransitionOut<Dialogue> {
-    log::info!("File {}", &state.filename);
+async fn handle_json(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+    (filename,): (String,), // Available from `State::Idle`.
+) -> anyhow::Result<()> {
+    log::info!("File {}", &filename);
     let mut is_file = false;
     let mut file_id: String = "".to_string();
     {
-        let update = &cx.update;
-        if let MessageKind::Common(msg) = &update.kind {
+        if let MessageKind::Common(msg) = &msg.kind {
+            log::info!("It's message");
             if let MediaKind::Document(doc) = &msg.media_kind {
                 is_file = true;
-                file_id = String::from_str(&state.filename).unwrap_or("".to_string());
+                file_id = String::from_str(&doc.document.file_id).unwrap_or("".to_string());
+                log::info!("It's file with id {:}", file_id);
             }
         }
     }
+
     if is_file {
         log::info!("File {} received", file_id);
-        cx.answer(format!("New file received!!!111 {}", file_id))
+        bot.send_message(msg.chat.id, format!("New file received!!!111 {}", file_id))
             .await?;
     } else {
-        cx.answer(format!("Unsupported media provided")).await?;
+        bot.send_message(msg.chat.id, format!("Unsupported media provided"))
+            .await?;
     }
 
-    if let Ok(newfile) = download_file(cx.requester.inner(), &file_id).await {
-        cx.answer(format!("File received: {:} ", newfile)).await?;
-        if let Some(tguser) = cx.update.from() {
-            let user = User::new(tguser.id, &None);
-            cx.answer(format!("Active user: {:} ", tguser.id)).await?;
-            let filepath = format!("{}.qif", &newfile);
-            log::info!("Received file {}", &filepath);
-            let mut i = non_cat_items(&newfile, &user);
-            if let Some(item) = i.pop() {
-                log::info!("No category for {}", &item);
-                cx.answer(format!("Select category for {}", item)).await?;
-                next(CategorySelectState {
-                    filename: state.filename,
-                    item,
+    if let Ok(newfile) = download_file(&bot, &file_id).await {
+        bot.send_message(msg.chat.id, format!("File received: {:} ", newfile))
+            .await?;
+        let user = User::new(msg.chat.id, &None);
+        bot.send_message(msg.chat.id, format!("Active user: {:} ", msg.chat.id))
+            .await?;
+        let filepath = format!("{}.qif", &newfile);
+        log::info!("Received file {}", &filepath);
+        let mut i = non_cat_items(&newfile, &user);
+        if let Some(item) = i.pop() {
+            log::info!("No category for {}", &item);
+            bot.send_message(msg.chat.id, format!("Select category for {}", item))
+                .await?;
+            dialogue
+                .update(State::CategorySelect {
+                    filename: filename,
+                    item: item,
                 })
-            } else {
-                log::info!("Empty state");
-                next(state)
-            }
-
-        /*            if let Ok(result) = convert_file(&newfile, &mut user, &cx).await {
-                        cx.answer(format!("File converted into: {:} ", result))
-                            .await?;
-                        next(CategorySelectState { item: file_id })
-
-                    } else {
-                        next(state)
-                    }
-        */
+                .await?;
         } else {
             log::info!("Empty state 2");
-            next(state)
         }
-    } else {
-        log::info!("Newfile {} fail", item);
-        cx.answer("Waiting for a JSON receipt in new_json").await?;
-        next(state)
     }
+    Ok(())
 }
 
-#[teloxide(subtransition)]
-async fn category_select(
-    state: CategorySelectState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    ans: String,
-) -> TransitionOut<Dialogue> {
+async fn handle_category(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+    (filename, item): (String, String), // Available from `State::Idle`.
+) -> anyhow::Result<()> {
     let accounts = [
         "Expenses:Alco".to_string(),
         "Expenses:Groceries".to_string(),
@@ -285,67 +288,78 @@ async fn category_select(
             }),
     );
 
-    cx.answer(format!("Input category for {}", state.item))
+    bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
         .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
         .await?;
 
-    next(SubCategorySelectState {
-        filename: state.filename,
-        item: state.item,
-        category: ans,
-    })
+    match msg.text() {
+        Some(cat) => {
+            dialogue
+                .update(State::SubCategorySelect {
+                    filename: filename,
+                    item: item,
+                    category: cat.to_string(),
+                })
+                .await?;
+        }
+        None => {
+            bot.send_message(msg.chat.id, "Send me a category.").await?;
+        }
+    }
+    Ok(())
 }
 
-#[teloxide(subtransition)]
-async fn subcategory_select(
-    state: SubCategorySelectState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    subcategory: String,
-) -> TransitionOut<Dialogue> {
-    cx.answer(format!("Select subcategory for {}", state.item))
-        .await?;
-    next(ItemReadyState {
-        filename: state.filename,
-        item: state.item,
-        fullcat: format!("{}:{}", state.category, subcategory),
-    })
+async fn handle_subcategory(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+    (filename, item, category): (String, String, String), // Available from `State::Idle`.
+) -> anyhow::Result<()> {
+    match msg.text() {
+        Some(subcategory) => {
+            bot.send_message(msg.chat.id, "Item ready").await?;
+            dialogue
+                .update(State::ItemReady {
+                    filename: filename,
+                    item: item,
+                    fullcat: format!("{}:{}", category, subcategory),
+                })
+                .await?;
+        }
+        None => {
+            bot.send_message(msg.chat.id, "Send me a subcategory.")
+                .await?;
+        }
+    }
+    Ok(())
 }
 
-#[teloxide(subtransition)]
-async fn item_ready(
-    state: ItemReadyState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
-) -> TransitionOut<Dialogue> {
-    cx.answer(format!(
-        "Item {} is ready for caterogy {}",
-        state.item, state.fullcat
-    ))
+async fn handle_item_ready(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+    (filename, item, fullcat): (String, String, String), // Available from `State::Idle`.
+) -> anyhow::Result<()> {
+    bot.send_message(
+        msg.chat.id,
+        format!("Item {} is ready for caterogy {}", item, fullcat),
+    )
     .await?;
-    next(QIFReadyState)
+    dialogue.update(State::Ready).await?;
+    Ok(())
 }
 
-#[teloxide(subtransition)]
-async fn qif_ready(
-    state: QIFReadyState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
-) -> TransitionOut<Dialogue> {
-    cx.answer(format!("QIF is ready for {}", item)).await?;
-    next(IdleState)
+async fn handle_qif_ready(
+    bot: AutoSend<Bot>,
+    msg: Message,
+    dialogue: QIFDialogue,
+) -> anyhow::Result<()> {
+    bot.send_message(msg.chat.id, "QIF is ready.").await?;
+    dialogue.update(State::Idle).await?;
+    Ok(())
 }
-
-#[teloxide(subtransition)]
-async fn idling(
-    state: IdleState,
-    cx: TransitionIn<AutoSend<Bot>>,
-    item: String,
-) -> TransitionOut<Dialogue> {
-    cx.answer(format!("Waiting for json or command")).await?;
-    next(state)
-}
-
-type StorageError = <InMemStorage<Dialogue> as Storage<Dialogue>>::Error;
+/*
+type StorageError = <InMemStorage<QIFDialogue> as Storage<QIFDialogue>>::Error;
 
 #[derive(Debug, Error)]
 enum Error {
@@ -463,11 +477,34 @@ where
             Some(Message { id, chat, .. }) => {
                 //                bot.edit_message_text(chat.id, id, text).await?;
                 bot.send_message(chat.id, text).await?;
+                let d = stor.get_dialogue(chat.id);
+                d.next(d);
             }
             None => {
                 if let Some(id) = query.inline_message_id {
                     //                    bot.edit_message_text_inline(dbg!(id), text).await?;
                     bot.send_message(id, text).await?;
+                }
+            }
+        }
+
+        log::info!("You chose: {}", version);
+    }
+
+    Ok(())
+}*/
+
+async fn callback_handler(q: CallbackQuery, bot: AutoSend<Bot>) -> anyhow::Result<()> {
+    if let Some(version) = q.data {
+        let text = format!("You chose: {}", version);
+
+        match q.message {
+            Some(Message { id, chat, .. }) => {
+                bot.edit_message_text(chat.id, id, text).await?;
+            }
+            None => {
+                if let Some(id) = q.inline_message_id {
+                    bot.edit_message_text_inline(id, text).await?;
                 }
             }
         }
@@ -487,37 +524,53 @@ async fn run() {
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
-    let storage = InMemStorage::new();
+    //    let storage = InMemStorage::new();
 
     let bot = Bot::from_env().auto_send();
-    // TODO: Add Dispatcher to process UpdateKinds
-    Dispatcher::new(bot)
-        .messages_handler(DialogueDispatcher::with_storage(
-            move |DialogueWithCx { cx, dialogue }: In| {
-                let _tx = tx.clone();
-                async move {
-                    let dialogue = dialogue.expect("std::convert::Infallible");
-                    handle_message(cx, dialogue, _tx)
-                        .await
-                        .expect("Something wrong with the bot!")
-                }
-            },
-            storage.clone(),
-        ))
-        .callback_queries_handler({
-            move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
-                UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
-                    move |cx| {
-                        let storage = storage.clone();
-                        async move {
-                            callback_handler(cx, storage).await.log_on_error().await;
-                        }
-                    }
-                })
-            }
-        })
+    let handler = dptree::entry()
+        .branch(
+            Update::filter_message()
+                .enter_dialogue::<Message, InMemStorage<State>, State>()
+                .dispatch_by::<State>(),
+        )
+        .branch(Update::filter_callback_query().endpoint(callback_handler));
+
+    Dispatcher::builder(bot, handler)
+        .dependencies(dptree::deps![InMemStorage::<State>::new()])
+        .build()
+        .setup_ctrlc_handler()
         .dispatch()
         .await;
+    /*
+        // TODO: Add Dispatcher to process UpdateKinds
+        Dispatcher::new(bot)
+            .messages_handler(DialogueDispatcher::with_storage(
+                move |DialogueWithCx { cx, dialogue }: In| {
+                    let _tx = tx.clone();
+                    async move {
+                        let dialogue = dialogue.expect("std::convert::Infallible");
+                        handle_message(cx, dialogue, _tx)
+                            .await
+                            .expect("Something wrong with the bot!")
+                    }
+                },
+                storage.clone(),
+            ))
+            .callback_queries_handler({
+                move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
+                    UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
+                        move |cx| {
+                            let storage = storage.clone();
+                            async move {
+                                callback_handler(cx, storage).await.log_on_error().await;
+                            }
+                        }
+                    })
+                }
+            })
+            .dispatch()
+            .await;
+    */
     drop(manager);
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
