@@ -13,6 +13,7 @@ use std::ffi::CString;
 use std::io::{stdout, Write};
 #[cfg(feature = "tv")]
 use std::os::raw::c_char;
+use std::process::exit;
 
 #[cfg(feature = "tv")]
 extern "C" {
@@ -167,6 +168,7 @@ pub fn input_category(item: &str, cat: &str, cats: &[&String]) -> String {
         }
         Err(ReadlineError::Interrupted) => {
             println!("Interrupted");
+            exit(1);
         }
         Err(ReadlineError::Eof) => {
             println!("Encountered Eof");
