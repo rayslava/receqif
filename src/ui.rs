@@ -175,5 +175,6 @@ pub fn input_category(item: &str, cat: &str, cats: &[&String]) -> String {
             println!("Error: {:?}", err);
         }
     }
+    print!("\x1b[1;0m");
     String::from(result.trim_end_matches('\n'))
 }
