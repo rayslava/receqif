@@ -3,6 +3,7 @@ use crate::convert::{convert, non_cat_items};
 use crate::tgusermanager::{user_manager, TgManagerCommand};
 use crate::user::User;
 use std::error::Error as StdError;
+use std::fmt;
 
 use derive_more::From;
 use qif_generator::{account::Account, account::AccountType};
@@ -14,12 +15,12 @@ use std::sync::{
 };
 use teloxide::types::*;
 use teloxide::{
-    dispatching2::dialogue::{InMemStorage, Storage},
+    dispatching::dialogue::{InMemStorage, Storage},
     macros::DialogueState,
     net::Download,
-    prelude2::*,
+    prelude::*,
     types::File as TgFile,
-    utils::command::BotCommand,
+    utils::command::BotCommands,
     Bot, DownloadError, RequestError,
 };
 use thiserror::Error;
@@ -27,6 +28,12 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+
+// impl Into<i64> for ChatId {
+//     fn into(self) -> i64 {
+//         self.0
+//     }
+// }
 
 #[cfg(feature = "telegram")]
 #[tokio::main]
@@ -61,7 +68,7 @@ enum FileConvertError {
     Io(#[source] std::io::Error),
 }
 
-#[derive(BotCommand, Debug)]
+#[derive(BotCommands, Debug)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
 enum Command {
     #[command(description = "display this text.")]
@@ -159,39 +166,60 @@ pub async fn input_category_from_tg(
     String::new()
 }
 */
-#[derive(DialogueState, Clone)]
-#[handler_out(anyhow::Result<()>)]
+#[derive(Clone, Debug)]
 pub enum State {
-    #[handler(handle_idle)]
     Idle,
 
-    #[handler(handle_json)]
-    NewJson { filename: String },
+    NewJson {
+        filename: String,
+    },
 
-    #[handler(handle_category)]
-    CategorySelect { filename: String, item: String },
+    CategorySelect {
+        filename: String,
+        item: String,
+    },
 
-    #[handler(handle_subcategory)]
     SubCategorySelect {
         filename: String,
         item: String,
         category: String,
     },
 
-    #[handler(handle_item_ready)]
     ItemReady {
         filename: String,
         item: String,
         fullcat: String,
     },
 
-    #[handler(handle_qif_ready)]
     Ready,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self::Idle
+    }
+}
+
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            State::Idle => write!(f, "Idle"),
+            State::NewJson { filename } => write!(f, "NewJson {}", filename),
+            State::CategorySelect { filename, item } => {
+                write!(f, "Category: {}, {}", filename, item)
+            }
+            State::SubCategorySelect {
+                filename,
+                item,
+                category,
+            } => write!(f, "SubCategory: {}, {}, {}", filename, item, category),
+            State::ItemReady {
+                filename,
+                item,
+                fullcat,
+            } => write!(f, "Itemready: {}, {}, {}", filename, item, fullcat),
+            State::Ready => write!(f, "Ready"),
+        }
     }
 }
 
@@ -243,7 +271,7 @@ async fn handle_json(
     if let Ok(newfile) = download_file(&bot, &file_id).await {
         bot.send_message(msg.chat.id, format!("File received: {:} ", newfile))
             .await?;
-        let user = User::new(msg.chat.id, &None);
+        let user = User::new(msg.chat.id.0, &None);
         bot.send_message(msg.chat.id, format!("Active user: {:} ", msg.chat.id))
             .await?;
         let filepath = format!("{}.qif", &newfile);
@@ -254,10 +282,7 @@ async fn handle_json(
             bot.send_message(msg.chat.id, format!("Select category for {}", item))
                 .await?;
             dialogue
-                .update(State::CategorySelect {
-                    filename: filename,
-                    item: item,
-                })
+                .update(State::CategorySelect { filename, item })
                 .await?;
         } else {
             log::info!("Empty state 2");
@@ -296,8 +321,8 @@ async fn handle_category(
         Some(cat) => {
             dialogue
                 .update(State::SubCategorySelect {
-                    filename: filename,
-                    item: item,
+                    filename,
+                    item,
                     category: cat.to_string(),
                 })
                 .await?;
@@ -320,8 +345,8 @@ async fn handle_subcategory(
             bot.send_message(msg.chat.id, "Item ready").await?;
             dialogue
                 .update(State::ItemReady {
-                    filename: filename,
-                    item: item,
+                    filename,
+                    item,
                     fullcat: format!("{}:{}", category, subcategory),
                 })
                 .await?;
@@ -494,13 +519,39 @@ where
     Ok(())
 }*/
 
-async fn callback_handler(q: CallbackQuery, bot: AutoSend<Bot>) -> anyhow::Result<()> {
+async fn callback_handler(
+    q: CallbackQuery,
+    bot: AutoSend<Bot>,
+    dialogue: QIFDialogue,
+) -> anyhow::Result<()> {
     if let Some(version) = q.data {
         let text = format!("You chose: {}", version);
 
         match q.message {
             Some(Message { id, chat, .. }) => {
-                bot.edit_message_text(chat.id, id, text).await?;
+                bot.edit_message_text(chat.id, id, text.clone()).await?;
+                let state = dialogue.get().await?;
+                if let Some(data) = state {
+                    log::info!("Data: {}", data);
+                    if let State::SubCategorySelect {
+                        filename,
+                        item,
+                        category,
+                    } = data
+                    {
+                        log::info!("SubCategory match!");
+                        todo!("Here item is ready, we need to check for next one");
+                        dialogue
+                            .update(State::ItemReady {
+                                filename,
+                                item,
+                                fullcat: text,
+                            })
+                            .await?;
+                    } else {
+                        log::info!("No SubCategory match!");
+                    }
+                }
             }
             None => {
                 if let Some(id) = q.inline_message_id {
@@ -531,9 +582,36 @@ async fn run() {
         .branch(
             Update::filter_message()
                 .enter_dialogue::<Message, InMemStorage<State>, State>()
-                .dispatch_by::<State>(),
+                .branch(teloxide::handler![State::Idle].endpoint(handle_idle))
+                // No idea about `{filename, }`, but otherwise thread "'tokio-runtime-worker' panicked at '(alloc::string::String,) was requested, but not provided."
+                .branch(teloxide::handler![State::NewJson { filename }].endpoint(handle_json))
+                .branch(
+                    teloxide::handler![State::CategorySelect { filename, item }]
+                        .endpoint(handle_category),
+                )
+                .branch(
+                    teloxide::handler![State::SubCategorySelect {
+                        filename,
+                        item,
+                        category
+                    }]
+                    .endpoint(handle_subcategory),
+                )
+                .branch(
+                    teloxide::handler![State::ItemReady {
+                        filename,
+                        item,
+                        fullcat
+                    }]
+                    .endpoint(handle_item_ready),
+                )
+                .branch(teloxide::handler![State::Ready].endpoint(handle_qif_ready)),
         )
-        .branch(Update::filter_callback_query().endpoint(callback_handler));
+        .branch(
+            Update::filter_callback_query()
+                .enter_dialogue::<CallbackQuery, InMemStorage<State>, State>()
+                .endpoint(callback_handler),
+        );
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
