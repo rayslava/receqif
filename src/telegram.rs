@@ -16,7 +16,6 @@ use std::sync::{
 use teloxide::types::*;
 use teloxide::{
     dispatching::dialogue::{InMemStorage, Storage},
-    macros::DialogueState,
     net::Download,
     prelude::*,
     types::File as TgFile,
@@ -69,7 +68,10 @@ enum FileConvertError {
 }
 
 #[derive(BotCommands, Debug)]
-#[command(rename = "lowercase", description = "These commands are supported:")]
+#[command(
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
+)]
 enum Command {
     #[command(description = "display this text.")]
     Help,
@@ -92,14 +94,12 @@ async fn download_file(
     downloader: &AutoSend<Bot>,
     file_id: &str,
 ) -> Result<String, FileReceiveError> {
-    let TgFile {
-        file_id, file_path, ..
-    } = downloader.get_file(file_id).send().await?;
+    let TgFile { path, .. } = downloader.get_file(file_id).send().await?;
     log::info!("Attempt to download file");
     let filepath = format!("/tmp/{}", file_id);
     log::info!("Path: {}", filepath);
     let mut file = File::create(&filepath).await?;
-    downloader.download_file(&file_path, &mut file).await?;
+    downloader.download_file(&path, &mut file).await?;
     Ok(filepath)
 }
 
@@ -253,7 +253,7 @@ async fn handle_json(
             log::info!("It's message");
             if let MediaKind::Document(doc) = &msg.media_kind {
                 is_file = true;
-                file_id = String::from_str(&doc.document.file_id).unwrap_or("".to_string());
+                file_id = String::from_str(&doc.document.file.id).unwrap_or("".to_string());
                 log::info!("It's file with id {:}", file_id);
             }
         }
@@ -279,8 +279,11 @@ async fn handle_json(
         let mut i = non_cat_items(&newfile, &user);
         if let Some(item) = i.pop() {
             log::info!("No category for {}", &item);
-            bot.send_message(msg.chat.id, format!("Select category for {}", item))
-                .await?;
+            bot.send_message(
+                msg.chat.id,
+                format!("Input category to search for {}", item),
+            )
+            .await?;
             dialogue
                 .update(State::CategorySelect { filename, item })
                 .await?;
@@ -301,6 +304,11 @@ async fn handle_category(
         "Expenses:Alco".to_string(),
         "Expenses:Groceries".to_string(),
     ];
+    let userid = if let Some(user) = msg.from() {
+        user.id.0
+    } else {
+        0
+    };
     let keyboard = InlineKeyboardMarkup::default().append_row(
         accounts
             .iter()
@@ -568,7 +576,7 @@ async fn callback_handler(
 
 #[cfg(feature = "telegram")]
 async fn run() {
-    teloxide::enable_logging!();
+    //    teloxide::enable_logging!();
     log::info!("Starting telegram bot");
     IS_RUNNING.store(true, Ordering::SeqCst);
     let (tx, mut rx) = mpsc::channel(32);
@@ -584,7 +592,10 @@ async fn run() {
                 .enter_dialogue::<Message, InMemStorage<State>, State>()
                 .branch(teloxide::handler![State::Idle].endpoint(handle_idle))
                 // No idea about `{filename, }`, but otherwise thread "'tokio-runtime-worker' panicked at '(alloc::string::String,) was requested, but not provided."
-                .branch(teloxide::handler![State::NewJson { filename }].endpoint(handle_json))
+                .branch(
+                    #[rustfmt::skip]
+		    teloxide::handler![State::NewJson { filename, }].endpoint(handle_json),
+                )
                 .branch(
                     teloxide::handler![State::CategorySelect { filename, item }]
                         .endpoint(handle_category),
@@ -612,43 +623,13 @@ async fn run() {
                 .enter_dialogue::<CallbackQuery, InMemStorage<State>, State>()
                 .endpoint(callback_handler),
         );
-
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
         .build()
         .setup_ctrlc_handler()
         .dispatch()
         .await;
-    /*
-        // TODO: Add Dispatcher to process UpdateKinds
-        Dispatcher::new(bot)
-            .messages_handler(DialogueDispatcher::with_storage(
-                move |DialogueWithCx { cx, dialogue }: In| {
-                    let _tx = tx.clone();
-                    async move {
-                        let dialogue = dialogue.expect("std::convert::Infallible");
-                        handle_message(cx, dialogue, _tx)
-                            .await
-                            .expect("Something wrong with the bot!")
-                    }
-                },
-                storage.clone(),
-            ))
-            .callback_queries_handler({
-                move |rx: DispatcherHandlerRx<AutoSend<Bot>, CallbackQuery>| {
-                    UnboundedReceiverStream::new(rx).for_each_concurrent(None, {
-                        move |cx| {
-                            let storage = storage.clone();
-                            async move {
-                                callback_handler(cx, storage).await.log_on_error().await;
-                            }
-                        }
-                    })
-                }
-            })
-            .dispatch()
-            .await;
-    */
+
     drop(manager);
     IS_RUNNING.store(false, Ordering::SeqCst);
 }
