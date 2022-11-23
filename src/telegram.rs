@@ -2,6 +2,7 @@ use crate::categories::CatStats;
 use crate::convert::{convert, non_cat_items};
 use crate::tgusermanager::{user_manager, TgManagerCommand};
 use crate::user::User;
+use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt;
 
@@ -165,7 +166,8 @@ pub async fn input_category_from_tg(
         .unwrap();
     String::new()
 }
-*/
+ */
+
 #[derive(Clone, Debug)]
 pub enum State {
     Idle,
@@ -177,18 +179,16 @@ pub enum State {
     CategorySelect {
         filename: String,
         item: String,
+        items_left: Box<Vec<String>>,
+        items_processed: Box<HashMap<String, String>>,
     },
 
     SubCategorySelect {
         filename: String,
         item: String,
         category: String,
-    },
-
-    ItemReady {
-        filename: String,
-        item: String,
-        fullcat: String,
+        items_left: Box<Vec<String>>,
+        items_processed: Box<HashMap<String, String>>,
     },
 
     Ready,
@@ -205,19 +205,21 @@ impl fmt::Display for State {
         match self {
             State::Idle => write!(f, "Idle"),
             State::NewJson { filename } => write!(f, "NewJson {}", filename),
-            State::CategorySelect { filename, item } => {
+            State::CategorySelect {
+                filename,
+                item,
+                items_left,
+                items_processed,
+            } => {
                 write!(f, "Category: {}, {}", filename, item)
             }
             State::SubCategorySelect {
                 filename,
                 item,
                 category,
+                items_left,
+                items_processed,
             } => write!(f, "SubCategory: {}, {}, {}", filename, item, category),
-            State::ItemReady {
-                filename,
-                item,
-                fullcat,
-            } => write!(f, "Itemready: {}, {}, {}", filename, item, fullcat),
             State::Ready => write!(f, "Ready"),
         }
     }
@@ -285,7 +287,12 @@ async fn handle_json(
             )
             .await?;
             dialogue
-                .update(State::CategorySelect { filename, item })
+                .update(State::CategorySelect {
+                    filename,
+                    item,
+                    items_left: Box::new(i),
+                    items_processed: Box::new(HashMap::new()),
+                })
                 .await?;
         } else {
             log::info!("Empty state 2");
@@ -298,7 +305,12 @@ async fn handle_category(
     bot: AutoSend<Bot>,
     msg: Message,
     dialogue: QIFDialogue,
-    (filename, item): (String, String), // Available from `State::Idle`.
+    (filename, item, items_left, items_processed): (
+        String,
+        String,
+        Box<Vec<String>>,
+        Box<HashMap<String, String>>,
+    ), // Available from `State::NewJson`.
 ) -> anyhow::Result<()> {
     let accounts = [
         "Expenses:Alco".to_string(),
@@ -332,6 +344,8 @@ async fn handle_category(
                     filename,
                     item,
                     category: cat.to_string(),
+                    items_left,
+                    items_processed,
                 })
                 .await?;
         }
@@ -346,39 +360,39 @@ async fn handle_subcategory(
     bot: AutoSend<Bot>,
     msg: Message,
     dialogue: QIFDialogue,
-    (filename, item, category): (String, String, String), // Available from `State::Idle`.
+    (filename, item, category, mut items_left, mut items_processed): (
+        String,
+        String,
+        String,
+        Box<Vec<String>>,
+        Box<HashMap<String, String>>,
+    ), // Available from `State::Category`.
 ) -> anyhow::Result<()> {
     match msg.text() {
         Some(subcategory) => {
             bot.send_message(msg.chat.id, "Item ready").await?;
-            dialogue
-                .update(State::ItemReady {
-                    filename,
-                    item,
-                    fullcat: format!("{}:{}", category, subcategory),
-                })
-                .await?;
+            items_processed.insert(item, category);
+            if items_left.len() > 0 {
+                if let Some(nextitem) = items_left.pop() {
+                    dialogue
+                        .update(State::CategorySelect {
+                            filename,
+                            item: nextitem,
+                            items_left,
+                            items_processed,
+                        })
+                        .await?;
+                } else {
+                    bot.send_message(msg.chat.id, "Can't pop next item :(")
+                        .await?;
+                }
+            }
         }
         None => {
             bot.send_message(msg.chat.id, "Send me a subcategory.")
                 .await?;
         }
     }
-    Ok(())
-}
-
-async fn handle_item_ready(
-    bot: AutoSend<Bot>,
-    msg: Message,
-    dialogue: QIFDialogue,
-    (filename, item, fullcat): (String, String, String), // Available from `State::Idle`.
-) -> anyhow::Result<()> {
-    bot.send_message(
-        msg.chat.id,
-        format!("Item {} is ready for caterogy {}", item, fullcat),
-    )
-    .await?;
-    dialogue.update(State::Ready).await?;
     Ok(())
 }
 
@@ -545,17 +559,18 @@ async fn callback_handler(
                         filename,
                         item,
                         category,
+                        items_left,
+                        items_processed,
                     } = data
                     {
                         log::info!("SubCategory match!");
+                        bot.send_message(
+                            chat.id,
+                            format!("Item {} is ready for caterogy {}", item, category),
+                        )
+                        .await?;
                         todo!("Here item is ready, we need to check for next one");
-                        dialogue
-                            .update(State::ItemReady {
-                                filename,
-                                item,
-                                fullcat: text,
-                            })
-                            .await?;
+                        dialogue.update(State::Ready).await?;
                     } else {
                         log::info!("No SubCategory match!");
                     }
@@ -597,24 +612,23 @@ async fn run() {
 		    teloxide::handler![State::NewJson { filename, }].endpoint(handle_json),
                 )
                 .branch(
-                    teloxide::handler![State::CategorySelect { filename, item }]
-                        .endpoint(handle_category),
+                    teloxide::handler![State::CategorySelect {
+                        filename,
+                        item,
+                        items_left,
+                        items_processed,
+                    }]
+                    .endpoint(handle_category),
                 )
                 .branch(
                     teloxide::handler![State::SubCategorySelect {
                         filename,
                         item,
-                        category
+                        category,
+                        items_left,
+                        items_processed,
                     }]
                     .endpoint(handle_subcategory),
-                )
-                .branch(
-                    teloxide::handler![State::ItemReady {
-                        filename,
-                        item,
-                        fullcat
-                    }]
-                    .endpoint(handle_item_ready),
                 )
                 .branch(teloxide::handler![State::Ready].endpoint(handle_qif_ready)),
         )
