@@ -91,10 +91,7 @@ enum Command {
 static IS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "telegram")]
-async fn download_file(
-    downloader: &AutoSend<Bot>,
-    file_id: &str,
-) -> Result<String, FileReceiveError> {
+async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
     let TgFile { path, .. } = downloader.get_file(file_id).send().await?;
     log::info!("Attempt to download file");
     let filepath = format!("/tmp/{}", file_id);
@@ -179,16 +176,16 @@ pub enum State {
     CategorySelect {
         filename: String,
         item: String,
-        items_left: Box<Vec<String>>,
-        items_processed: Box<HashMap<String, String>>,
+        items_left: Vec<String>,
+        items_processed: HashMap<String, String>,
     },
 
     SubCategorySelect {
         filename: String,
         item: String,
         category: String,
-        items_left: Box<Vec<String>>,
-        items_processed: Box<HashMap<String, String>>,
+        items_left: Vec<String>,
+        items_processed: HashMap<String, String>,
     },
 
     Ready,
@@ -227,11 +224,7 @@ impl fmt::Display for State {
 
 type QIFDialogue = Dialogue<State, InMemStorage<State>>;
 
-async fn handle_idle(
-    bot: AutoSend<Bot>,
-    msg: Message,
-    dialogue: QIFDialogue,
-) -> anyhow::Result<()> {
+async fn handle_idle(bot: Bot, msg: Message, dialogue: QIFDialogue) -> anyhow::Result<()> {
     bot.send_message(msg.chat.id, "Upload your file").await?;
     dialogue
         .update(State::NewJson {
@@ -242,7 +235,7 @@ async fn handle_idle(
 }
 
 async fn handle_json(
-    bot: AutoSend<Bot>,
+    bot: Bot,
     msg: Message,
     dialogue: QIFDialogue,
     (filename,): (String,), // Available from `State::Idle`.
@@ -290,8 +283,8 @@ async fn handle_json(
                 .update(State::CategorySelect {
                     filename,
                     item,
-                    items_left: Box::new(i),
-                    items_processed: Box::new(HashMap::new()),
+                    items_left: i,
+                    items_processed: HashMap::new(),
                 })
                 .await?;
         } else {
@@ -302,14 +295,14 @@ async fn handle_json(
 }
 
 async fn handle_category(
-    bot: AutoSend<Bot>,
+    bot: Bot,
     msg: Message,
     dialogue: QIFDialogue,
     (filename, item, items_left, items_processed): (
         String,
         String,
-        Box<Vec<String>>,
-        Box<HashMap<String, String>>,
+        Vec<String>,
+        HashMap<String, String>,
     ), // Available from `State::NewJson`.
 ) -> anyhow::Result<()> {
     let accounts = [
@@ -357,15 +350,15 @@ async fn handle_category(
 }
 
 async fn handle_subcategory(
-    bot: AutoSend<Bot>,
+    bot: Bot,
     msg: Message,
     dialogue: QIFDialogue,
     (filename, item, category, mut items_left, mut items_processed): (
         String,
         String,
         String,
-        Box<Vec<String>>,
-        Box<HashMap<String, String>>,
+        Vec<String>,
+        HashMap<String, String>,
     ), // Available from `State::Category`.
 ) -> anyhow::Result<()> {
     match msg.text() {
@@ -396,11 +389,7 @@ async fn handle_subcategory(
     Ok(())
 }
 
-async fn handle_qif_ready(
-    bot: AutoSend<Bot>,
-    msg: Message,
-    dialogue: QIFDialogue,
-) -> anyhow::Result<()> {
+async fn handle_qif_ready(bot: Bot, msg: Message, dialogue: QIFDialogue) -> anyhow::Result<()> {
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     dialogue.update(State::Idle).await?;
     Ok(())
@@ -541,11 +530,7 @@ where
     Ok(())
 }*/
 
-async fn callback_handler(
-    q: CallbackQuery,
-    bot: AutoSend<Bot>,
-    dialogue: QIFDialogue,
-) -> anyhow::Result<()> {
+async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> anyhow::Result<()> {
     if let Some(version) = q.data {
         let text = format!("You chose: {}", version);
 
@@ -600,7 +585,7 @@ async fn run() {
 
     //    let storage = InMemStorage::new();
 
-    let bot = Bot::from_env().auto_send();
+    let bot = Bot::from_env();
     let handler = dptree::entry()
         .branch(
             Update::filter_message()
@@ -639,8 +624,8 @@ async fn run() {
         );
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
+        .enable_ctrlc_handler()
         .build()
-        .setup_ctrlc_handler()
         .dispatch()
         .await;
 

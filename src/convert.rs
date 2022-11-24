@@ -3,7 +3,7 @@ use crate::categories::get_top_category;
 use crate::categories::CatStats;
 use crate::receipt;
 use crate::user::User;
-use chrono::{Date, Utc};
+use chrono::{DateTime, Utc};
 use qif_generator::{account::Account, split::Split, transaction::Transaction};
 use std::fs;
 
@@ -56,7 +56,7 @@ where
 /// Generate QIF transaction from `splits`
 pub fn gen_trans<'a>(
     acc: &'a Account,
-    date: Date<Utc>,
+    date: DateTime<Utc>,
     sum: i64,
     memo: &str,
     splits: Vec<Split>,

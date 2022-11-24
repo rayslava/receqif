@@ -1,10 +1,10 @@
-use chrono::{Date, Utc};
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::fmt;
 
 pub struct Purchase {
     sum: i64,
-    date: Date<Utc>,
+    date: DateTime<Utc>,
     pub items: Vec<Item>,
 }
 
@@ -13,7 +13,7 @@ impl Purchase {
         self.sum
     }
 
-    pub fn date(&self) -> Date<Utc> {
+    pub fn date(&self) -> DateTime<Utc> {
         self.date
     }
 }
@@ -55,18 +55,18 @@ struct Ticket {
 struct Query {
     sum: i64,
     #[serde(with = "custom_date_format")]
-    date: Date<Utc>,
+    date: DateTime<Utc>,
 }
 
 mod custom_date_format {
-    use chrono::{Date, TimeZone, Utc};
+    use chrono::{DateTime, TimeZone, Utc};
     use serde::{self, Deserialize, Deserializer};
 
     /// The format seems alike to RFC3339 but is not compliant
     const FORMAT: &str = "%Y-%m-%dT%H:%M";
 
     /// Custom deserializer for format in our json
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Date<Utc>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -75,7 +75,7 @@ mod custom_date_format {
             .datetime_from_str(&s, FORMAT)
             .map_err(serde::de::Error::custom);
         match dt {
-            Ok(date) => Ok(date.date()),
+            Ok(date) => Ok(date.with_timezone(&Utc)),
             Err(e) => Err(e),
         }
     }

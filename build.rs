@@ -16,7 +16,7 @@ fn main() {
         println!("cargo:rerun-if-changed=extern/tvision");
 
         Command::new("cmake")
-            .args(&[
+            .args([
                 "extern/tvision",
                 "-B",
                 "extern/tvision/build",
@@ -31,7 +31,7 @@ fn main() {
         let jobs = env::var("NUM_JOBS").unwrap();
 
         Command::new("cmake")
-            .args(&["--build", "extern/tvision/build", "--parallel", &jobs])
+            .args(["--build", "extern/tvision/build", "--parallel", &jobs])
             .status()
             .unwrap();
 
