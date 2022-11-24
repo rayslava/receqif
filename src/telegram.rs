@@ -1,13 +1,10 @@
-use crate::categories::CatStats;
 use crate::convert::{convert, non_cat_items};
-use crate::tgusermanager::{user_manager, TgManagerCommand};
+use crate::tgusermanager::user_manager;
 use crate::user::User;
 use std::collections::HashMap;
-use std::error::Error as StdError;
 use std::fmt;
 
 use derive_more::From;
-use qif_generator::{account::Account, account::AccountType};
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::{
@@ -16,18 +13,12 @@ use std::sync::{
 };
 use teloxide::types::*;
 use teloxide::{
-    dispatching::dialogue::{InMemStorage, Storage},
-    net::Download,
-    prelude::*,
-    types::File as TgFile,
-    utils::command::BotCommands,
-    Bot, DownloadError, RequestError,
+    dispatching::dialogue::InMemStorage, net::Download, prelude::*, types::File as TgFile,
+    utils::command::BotCommands, Bot, DownloadError, RequestError,
 };
 use thiserror::Error;
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::{mpsc, oneshot};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio::sync::mpsc;
 
 // impl Into<i64> for ChatId {
 //     fn into(self) -> i64 {
@@ -305,10 +296,46 @@ async fn handle_category(
         HashMap<String, String>,
     ), // Available from `State::NewJson`.
 ) -> anyhow::Result<()> {
-    let accounts = [
-        "Expenses:Alco".to_string(),
-        "Expenses:Groceries".to_string(),
-    ];
+    let version = msg.text();
+    if version.is_none() {
+        bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
+            .await?;
+        dialogue
+            .update(State::CategorySelect {
+                filename,
+                item,
+                items_left,
+                items_processed,
+            })
+            .await?;
+        return Ok(());
+    };
+
+    let version = version.unwrap();
+
+    let user = User::new(msg.chat.id.0, &None);
+    let accounts = user
+        .accounts
+        .iter()
+        .filter(|&e| {
+            e.starts_with("Expenses:") && e.to_lowercase().contains(&version.to_lowercase())
+        })
+        .collect::<Vec<_>>();
+
+    if accounts.is_empty() {
+        bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
+            .await?;
+        dialogue
+            .update(State::CategorySelect {
+                filename,
+                item,
+                items_left,
+                items_processed,
+            })
+            .await?;
+        return Ok(());
+    };
+
     let userid = if let Some(user) = msg.from() {
         user.id.0
     } else {
@@ -316,8 +343,8 @@ async fn handle_category(
     };
     let keyboard = InlineKeyboardMarkup::default().append_row(
         accounts
-            .iter()
-            .filter(|l| l.starts_with("Expenses:"))
+            .into_iter()
+            .filter(|&l| l.starts_with("Expenses:"))
             .map(|line| {
                 InlineKeyboardButton::new(
                     line.strip_prefix("Expenses:").unwrap(),
@@ -544,18 +571,40 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                         filename,
                         item,
                         category,
-                        items_left,
-                        items_processed,
+                        mut items_left,
+                        mut items_processed,
                     } = data
                     {
                         log::info!("SubCategory match!");
                         bot.send_message(
                             chat.id,
-                            format!("Item {} is ready for caterogy {}", item, category),
+                            format!("Item {} is ready for caterogy {}", item, version),
                         )
                         .await?;
-                        todo!("Here item is ready, we need to check for next one");
-                        dialogue.update(State::Ready).await?;
+                        items_processed.insert(item, version);
+                        if let Some(newitem) = items_left.pop() {
+                            bot.send_message(
+                                chat.id,
+                                format!("Input category to search for {}", newitem),
+                            )
+                            .await?;
+                            dialogue
+                                .update(State::CategorySelect {
+                                    filename,
+                                    item: newitem,
+                                    items_left,
+                                    items_processed,
+                                })
+                                .await?;
+                        } else {
+                            bot.send_message(chat.id, format!("This was the last item!"))
+                                .await?;
+                            for (key, value) in &items_processed {
+                                bot.send_message(chat.id, format!("{}: {}", key, value))
+                                    .await?;
+                            }
+                            dialogue.update(State::Ready).await?;
+                        }
                     } else {
                         log::info!("No SubCategory match!");
                     }
@@ -567,8 +616,6 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                 }
             }
         }
-
-        log::info!("You chose: {}", version);
     }
 
     Ok(())
