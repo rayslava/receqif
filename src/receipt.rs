@@ -9,7 +9,7 @@ pub struct Purchase {
 }
 
 impl Purchase {
-    pub fn total_sum(self) -> i64 {
+    pub fn total_sum(&self) -> i64 {
         self.sum
     }
 

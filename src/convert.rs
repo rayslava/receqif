@@ -31,19 +31,21 @@ mod tests {
 }
 
 /// Generate set of QIF Splits from a Purchase items
-pub fn gen_splits<F>(
+pub fn gen_splits<F, C>(
     items: &[receipt::Item],
     cs: &mut CatStats,
     accounts: &[String],
-    categorizer: F,
+    filter: F,
+    categorizer: C,
 ) -> Vec<Split>
 where
-    F: Fn(&str, &mut CatStats, &[String]) -> String,
+    C: Fn(&str, &mut CatStats, &[String]) -> String,
+    F: Fn(&str) -> &str,
 {
     let mut result: Vec<Split> = Vec::new();
     for i in items.iter() {
         let t = Split::new()
-            .memo(i.name.as_str())
+            .memo(filter(i.name.as_str()))
             .amount(-i.sum)
             .category(&categorizer(i.name.as_str(), cs, accounts))
             .build();
@@ -59,12 +61,12 @@ pub fn gen_trans<'a>(
     date: DateTime<Utc>,
     sum: i64,
     memo: &str,
-    splits: Vec<Split>,
+    splits: &[Split],
 ) -> Result<Transaction<'a>, String> {
     let t = Transaction::new(acc)
         .date(date)
         .memo(memo)
-        .splits(&splits)
+        .splits(splits)
         .build();
 
     match t {
@@ -88,7 +90,7 @@ pub fn gen_trans<'a>(
 pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
     let file = read_file(filename);
     let mut result: Vec<String> = Vec::new();
-    for i in &file.items {
+    for i in file.items {
         match get_top_category(i.name.as_str(), &user.catmap) {
             Some(_) => (),
             None => result.push(String::from(i.name.as_str())),
@@ -98,22 +100,25 @@ pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
 }
 
 /// Convert `filename` into a QIF transaction
-pub fn convert<'a, F>(
+pub fn convert<'a, F, C>(
     filename: &'a str,
     memo: &str,
     user: &'a mut User,
     acc: &'a Account,
-    categorizer: F,
+    filter: F,
+    categorizer: C,
 ) -> Result<Transaction<'a>, String>
 where
-    F: Fn(&str, &mut CatStats, &[String]) -> String,
+    F: Fn(&str) -> &str,
+    C: Fn(&str, &mut CatStats, &[String]) -> String,
 {
-    let purchase = read_file(filename);
-    let splits = gen_splits(
+    let purchase = &read_file(filename);
+    let splits = &gen_splits(
         &purchase.items,
         &mut user.catmap,
         &user.accounts,
-        categorizer,
+        &filter,
+        &categorizer,
     );
     gen_trans(acc, purchase.date(), purchase.total_sum(), memo, splits)
 }
