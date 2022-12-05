@@ -16,19 +16,12 @@
       "inn": "7703270067"
     },
     "qr": "t=20210324T2002&s=2678.00&fn=9282440300829284&i=28230&fp=1706439950&n=1",
-    "query": {
-      "date": "2021-03-24T20:02",
-      "documentId": 28230,
-      "fsId": "9282440300829284",
-      "fiscalSign": "1706439950",
-      "operationType": 1,
-      "sum": 267800
-    },
     "ticket": {
       "document": {
         "receipt": {
           "retailPlace": "АШАН - Авиапарк",
           "totalSum": 267800,
+	  "dateTime": "2021-03-24T20:02:00",
           "userInn": "7703270067  ",
           "operator": "Теpминал 24",
           "items": [

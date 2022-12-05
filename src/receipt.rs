@@ -35,6 +35,8 @@ impl fmt::Display for Item {
 #[derive(Deserialize, Debug, Clone)]
 struct Receipt {
     totalSum: i64,
+    #[serde(with = "custom_date_format")]
+    dateTime: DateTime<Utc>,
     pub items: Vec<Item>,
 }
 
@@ -50,20 +52,12 @@ struct Ticket {
     document: Document,
 }
 
-#[allow(dead_code)]
-#[derive(Deserialize)]
-struct Query {
-    sum: i64,
-    #[serde(with = "custom_date_format")]
-    date: DateTime<Utc>,
-}
-
 mod custom_date_format {
     use chrono::{DateTime, TimeZone, Utc};
     use serde::{self, Deserialize, Deserializer};
 
     /// The format seems alike to RFC3339 but is not compliant
-    const FORMAT: &str = "%Y-%m-%dT%H:%M";
+    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 
     /// Custom deserializer for format in our json
     pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
@@ -84,7 +78,6 @@ mod custom_date_format {
 #[allow(dead_code)]
 #[derive(Deserialize)]
 struct Input {
-    query: Query,
     ticket: Ticket,
 }
 
@@ -92,8 +85,8 @@ pub fn parse_purchase(line: &str) -> Purchase {
     // TODO: Check if several receipts are possible
     let receipt: Vec<Input> = serde_json::from_str(line).unwrap();
     Purchase {
-        sum: receipt[0].query.sum,
-        date: receipt[0].query.date,
+        sum: receipt[0].ticket.document.receipt.totalSum,
+        date: receipt[0].ticket.document.receipt.dateTime,
         items: receipt[0].ticket.document.receipt.items.clone(),
     }
 }
@@ -109,10 +102,10 @@ mod receipt {
             r#"
 {
     "quantity" : 1,
-    "ndsRate" : 1,
+    "nds" : 1,
     "price" : 5549,
-    "calculationSubjectSign" : 1,
-    "calculationTypeSign" : 4,
+    "paymentType": 4,
+    "productType": 1,
     "name" : "ХРЕН РУССКИЙ 170Г",
     "sum" : 5549
 }
@@ -125,28 +118,6 @@ mod receipt {
     }
 
     #[test]
-    fn query() {
-        let line = String::from(
-            r#"
-{
-    "date": "2021-03-24T20:02",
-    "documentId": 28230,
-    "fsId": "9282440300829284",
-    "fiscalSign": "1706439950",
-    "operationType": 1,
-    "sum": 267800
-}
-"#,
-        );
-
-        let testit: Query = serde_json::from_str(&line).unwrap();
-        assert_eq!(testit.sum, 267800);
-        assert_eq!(testit.date.day(), 24);
-        assert_eq!(testit.date.month(), 3);
-        assert_eq!(testit.date.year(), 2021);
-    }
-
-    #[test]
     fn receipt() {
         let line = String::from(
             r#"
@@ -154,6 +125,7 @@ mod receipt {
     "totalSum" : 548702,
     "userInn" : "7703270067",
     "operator" : "Теpминал 24",
+    "dateTime": "2021-03-24T17:42:00",
     "items" : [
         {
 	    "quantity" : 1,
@@ -183,6 +155,9 @@ mod receipt {
         assert_eq!(testit.items.len(), 2);
         assert_eq!(testit.items[0].sum, 5549);
         assert_eq!(testit.items[1].sum, 20599);
+        assert_eq!(testit.dateTime.day(), 24);
+        assert_eq!(testit.dateTime.month(), 3);
+        assert_eq!(testit.dateTime.year(), 2021);
     }
 
     #[test]
@@ -190,20 +165,13 @@ mod receipt {
         let line = String::from(
             r#"
 {
-"query": {
-      "date": "2021-03-24T20:02",
-      "documentId": 28230,
-      "fsId": "9282440300829284",
-      "fiscalSign": "1706439950",
-      "operationType": 1,
-      "sum": 267800
-    },
 "ticket": {
   "document" : {
     "receipt" : {
       "totalSum" : 548702,
       "userInn" : "7703270067",
       "operator" : "Теpминал 24",
+      "dateTime": "2021-03-24T17:42:00",
       "items" : [
         {
           "quantity" : 1,
@@ -236,9 +204,9 @@ mod receipt {
         assert_eq!(testit.ticket.document.receipt.items.len(), 2);
         assert_eq!(testit.ticket.document.receipt.items[0].sum, 5549);
         assert_eq!(testit.ticket.document.receipt.items[1].sum, 20599);
-        assert_eq!(testit.query.date.day(), 24);
-        assert_eq!(testit.query.date.month(), 3);
-        assert_eq!(testit.query.date.year(), 2021);
+        assert_eq!(testit.ticket.document.receipt.dateTime.day(), 24);
+        assert_eq!(testit.ticket.document.receipt.dateTime.month(), 3);
+        assert_eq!(testit.ticket.document.receipt.dateTime.year(), 2021);
     }
 
     #[test]
