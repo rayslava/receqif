@@ -59,7 +59,7 @@ enum FileConvertError {
     Io(#[source] std::io::Error),
 }
 
-#[derive(BotCommands, Debug)]
+#[derive(BotCommands, Clone, Debug)]
 #[command(
     rename_rule = "lowercase",
     description = "These commands are supported:"
@@ -76,6 +76,35 @@ enum Command {
 
     #[command(description = "Request something")]
     Request,
+
+    #[command(description = "Cancel processing of current file")]
+    Cancel,
+}
+
+async fn command_handler(
+    bot: Bot,
+    dialogue: QIFDialogue,
+    me: teloxide::types::Me,
+    msg: Message,
+    cmd: Command,
+) -> HandlerResult {
+    match cmd {
+        Command::Help => {
+            bot.send_message(msg.chat.id, Command::descriptions().to_string())
+                .await?
+        }
+        Command::Start => bot.send_message(msg.chat.id, format!("Starting")).await?,
+        Command::Delete => bot.send_message(msg.chat.id, format!("Deleting")).await?,
+
+        Command::Request => bot.send_message(msg.chat.id, format!("Requesting")).await?,
+        Command::Cancel => {
+            dialogue.update(State::Idle).await?;
+            bot.send_message(msg.chat.id, format!("Dialogue state reset"))
+                .await?
+        }
+    };
+
+    Ok(())
 }
 
 #[cfg(feature = "telegram")]
@@ -214,8 +243,9 @@ impl fmt::Display for State {
 }
 
 type QIFDialogue = Dialogue<State, InMemStorage<State>>;
+type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
-async fn handle_idle(bot: Bot, msg: Message, dialogue: QIFDialogue) -> anyhow::Result<()> {
+async fn handle_idle(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerResult {
     bot.send_message(msg.chat.id, "Upload your file").await?;
     dialogue
         .update(State::NewJson {
@@ -227,10 +257,10 @@ async fn handle_idle(bot: Bot, msg: Message, dialogue: QIFDialogue) -> anyhow::R
 
 async fn handle_json(
     bot: Bot,
-    msg: Message,
     dialogue: QIFDialogue,
+    msg: Message,
     (filename,): (String,), // Available from `State::Idle`.
-) -> anyhow::Result<()> {
+) -> HandlerResult {
     log::info!("File {}", &filename);
     let mut is_file = false;
     let mut file_id: String = "".to_string();
@@ -250,8 +280,11 @@ async fn handle_json(
         bot.send_message(msg.chat.id, format!("New file received!!!111 {}", file_id))
             .await?;
     } else {
-        bot.send_message(msg.chat.id, format!("Unsupported media provided"))
-            .await?;
+        bot.send_message(
+            msg.chat.id,
+            format!("Not supported file sent"),
+        )
+        .await?;
     }
 
     if let Ok(newfile) = download_file(&bot, &file_id).await {
@@ -287,15 +320,15 @@ async fn handle_json(
 
 async fn handle_category(
     bot: Bot,
-    msg: Message,
     dialogue: QIFDialogue,
+    msg: Message,
     (filename, item, items_left, items_processed): (
         String,
         String,
         Vec<String>,
         HashMap<String, String>,
     ), // Available from `State::NewJson`.
-) -> anyhow::Result<()> {
+) -> HandlerResult {
     let version = msg.text();
     if version.is_none() {
         bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
@@ -378,8 +411,8 @@ async fn handle_category(
 
 async fn handle_subcategory(
     bot: Bot,
-    msg: Message,
     dialogue: QIFDialogue,
+    msg: Message,
     (filename, item, category, mut items_left, mut items_processed): (
         String,
         String,
@@ -387,7 +420,7 @@ async fn handle_subcategory(
         Vec<String>,
         HashMap<String, String>,
     ), // Available from `State::Category`.
-) -> anyhow::Result<()> {
+) -> HandlerResult {
     match msg.text() {
         Some(subcategory) => {
             bot.send_message(msg.chat.id, "Item ready").await?;
@@ -416,7 +449,7 @@ async fn handle_subcategory(
     Ok(())
 }
 
-async fn handle_qif_ready(bot: Bot, msg: Message, dialogue: QIFDialogue) -> anyhow::Result<()> {
+async fn handle_qif_ready(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerResult {
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     dialogue.update(State::Idle).await?;
     Ok(())
@@ -555,9 +588,9 @@ where
     }
 
     Ok(())
-}*/
-
-async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> anyhow::Result<()> {
+}
+*/
+async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> HandlerResult {
     if let Some(version) = q.data {
         let text = format!("You chose: {}", version);
 
@@ -630,21 +663,27 @@ async fn run() {
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
-    //    let storage = InMemStorage::new();
-
     let bot = Bot::from_env();
+
     let handler = dptree::entry()
         .branch(
             Update::filter_message()
                 .enter_dialogue::<Message, InMemStorage<State>, State>()
-                .branch(teloxide::handler![State::Idle].endpoint(handle_idle))
+                .branch(
+                    dptree::entry()
+                        // Filter commands: the next handlers will receive a parsed `Command`.
+                        .filter_command::<Command>()
+                        // If a command parsing fails, this handler will not be executed.
+                        .endpoint(command_handler),
+                )
+                .branch(dptree::case![State::Idle].endpoint(handle_idle))
                 // No idea about `{filename, }`, but otherwise thread "'tokio-runtime-worker' panicked at '(alloc::string::String,) was requested, but not provided."
                 .branch(
                     #[rustfmt::skip]
-		    teloxide::handler![State::NewJson { filename, }].endpoint(handle_json),
+		    dptree::case![State::NewJson { filename, }].endpoint(handle_json),
                 )
                 .branch(
-                    teloxide::handler![State::CategorySelect {
+                    dptree::case![State::CategorySelect {
                         filename,
                         item,
                         items_left,
@@ -653,7 +692,7 @@ async fn run() {
                     .endpoint(handle_category),
                 )
                 .branch(
-                    teloxide::handler![State::SubCategorySelect {
+                    dptree::case![State::SubCategorySelect {
                         filename,
                         item,
                         category,
@@ -662,7 +701,7 @@ async fn run() {
                     }]
                     .endpoint(handle_subcategory),
                 )
-                .branch(teloxide::handler![State::Ready].endpoint(handle_qif_ready)),
+                .branch(dptree::case![State::Ready].endpoint(handle_qif_ready)),
         )
         .branch(
             Update::filter_callback_query()
