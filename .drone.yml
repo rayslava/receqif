@@ -1,0 +1,11 @@
+kind: pipeline
+type: kubernetes
+name: receqif
+
+steps:
+- name: test
+  image: rust:1.66
+  commands:
+  - rustup default nightly
+  - cargo build --verbose --all
+  - cargo test --verbose --all
