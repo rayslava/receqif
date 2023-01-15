@@ -3,7 +3,7 @@ type: kubernetes
 name: receqif
 
 steps:
-- name: test
+- name: build and test
   image: rust:1.66
   commands:
   - rustup default nightly
