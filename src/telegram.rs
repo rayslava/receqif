@@ -280,11 +280,8 @@ async fn handle_json(
         bot.send_message(msg.chat.id, format!("New file received!!!111 {}", file_id))
             .await?;
     } else {
-        bot.send_message(
-            msg.chat.id,
-            format!("Not supported file sent"),
-        )
-        .await?;
+        bot.send_message(msg.chat.id, format!("Not supported file sent"))
+            .await?;
     }
 
     if let Ok(newfile) = download_file(&bot, &file_id).await {
