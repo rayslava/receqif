@@ -115,7 +115,7 @@ fn main() {
 
     if let Some(filename) = &args.filename {
         let cat = &|item: &str, stats: &mut categories::CatStats, acc: &[String]| -> String {
-            categories::get_category(item, stats, acc)
+            categories::get_category(filter(item), stats, acc)
         };
         let t = convert::convert(filename, &args.memo, &mut user, &acc, filter, cat).unwrap();
         print!("{}", acc);
