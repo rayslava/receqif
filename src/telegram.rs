@@ -1,4 +1,7 @@
+use crate::categories;
 use crate::convert::{convert, non_cat_items};
+use qif_generator::account::{Account, AccountType};
+
 use crate::tgusermanager::user_manager;
 use crate::user::User;
 use std::collections::HashMap;
@@ -208,7 +211,10 @@ pub enum State {
         items_processed: HashMap<String, String>,
     },
 
-    Ready,
+    Ready {
+        filename: String,
+        item_categories: HashMap<String, String>,
+    },
 }
 
 impl Default for State {
@@ -237,7 +243,14 @@ impl fmt::Display for State {
                 items_left,
                 items_processed,
             } => write!(f, "SubCategory: {}, {}, {}", filename, item, category),
-            State::Ready => write!(f, "Ready"),
+            State::Ready {
+                filename,
+                item_categories,
+            } => write!(
+                f,
+                "Conversion is ready for file {} the following items: {:#?}",
+                filename, item_categories
+            ),
         }
     }
 }
@@ -302,7 +315,7 @@ async fn handle_json(
             .await?;
             dialogue
                 .update(State::CategorySelect {
-                    filename,
+                    filename: newfile,
                     item,
                     items_left: i,
                     items_processed: HashMap::new(),
@@ -416,7 +429,7 @@ async fn handle_subcategory(
         String,
         Vec<String>,
         HashMap<String, String>,
-    ), // Available from `State::Category`.
+    ), // Available from `State::SubCategory`.
 ) -> HandlerResult {
     match msg.text() {
         Some(subcategory) => {
@@ -446,147 +459,38 @@ async fn handle_subcategory(
     Ok(())
 }
 
-async fn handle_qif_ready(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerResult {
+fn nofilter(line: &str) -> &str {
+    line
+}
+
+async fn handle_qif_ready(
+    bot: Bot,
+    dialogue: QIFDialogue,
+    msg: Message,
+    (filename, item_categories): (String, HashMap<String, String>), // Available from `State::Ready`.
+) -> HandlerResult {
+    let mut user = User::new(msg.chat.id.0, &None);
+
+    let acc = Account::new()
+        .name("Reiffeisen")
+        .account_type(AccountType::Bank)
+        .build();
+
+    let cat = &|item: &str, stats: &mut categories::CatStats, acc: &[String]| -> String {
+        item_categories
+            .get(&format!("{}", &item))
+            .unwrap()
+            .to_owned()
+    };
+
+    let t = convert(&filename, "testmemo", &mut user, &acc, nofilter, cat).unwrap();
+    let qif = InputFile::memory(format!("{}{}", acc, t).into_bytes());
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
+    bot.send_document(msg.chat.id, qif).await?;
     dialogue.update(State::Idle).await?;
     Ok(())
 }
-/*
-type StorageError = <InMemStorage<QIFDialogue> as Storage<QIFDialogue>>::Error;
 
-#[derive(Debug, Error)]
-enum Error {
-    #[error("error from Telegram: {0}")]
-    TelegramError(#[from] RequestError),
-}
-
-type In = DialogueWithCx<AutoSend<Bot>, Message, Dialogue, StorageError>;
-
-async fn handle_message(
-    cx: UpdateWithCx<AutoSend<Bot>, Message>,
-    dialogue: Dialogue,
-    tx: mpsc::Sender<TgManagerCommand>,
-) -> TransitionOut<Dialogue> {
-    let ans = cx.update.text().map(ToOwned::to_owned);
-    match dialogue {
-        Dialogue::Idle(_) => {
-            match ans {
-                None => {
-                    log::info!("No text");
-                    let mut is_file = false;
-                    let mut file_id: String = "".to_string();
-                    {
-                        let update = &cx.update;
-                        if let MessageKind::Common(msg) = &update.kind {
-                            if let MediaKind::Document(doc) = &msg.media_kind {
-                                is_file = true;
-                                file_id = doc.document.file_id.clone();
-                            }
-                        }
-                    }
-                    if is_file {
-                        log::info!("File {} received", file_id);
-                        next(NewJsonState { filename: file_id })
-                    //	dialogue.react(cx, file_id).await
-                    } else {
-                        cx.answer(format!("Unsupported media provided")).await?;
-                        next(dialogue)
-                    }
-                }
-                Some(ans) => {
-                    if let Ok(command) = Command::parse(&ans, "tgqif") {
-                        match command {
-                            Command::Help => {
-                                cx.answer(Command::descriptions()).send().await?;
-                                next(dialogue)
-                            }
-                            Command::Start => {
-                                if let Some(user) = cx.update.from() {
-                                    cx.answer(format!(
-                                        "You registered as @{} with id {}.",
-                                        user.first_name, user.id
-                                    ))
-                                    .await?;
-                                }
-                                next(dialogue)
-                            }
-                            Command::Delete => {
-                                if let Some(user) = cx.update.from() {
-                                    cx.answer(format!("Deleting data for user {}", user.id))
-                                        .await?;
-                                }
-                                next(dialogue)
-                            }
-                            Command::Request => {
-                                let (send, recv) = oneshot::channel();
-                                if tx
-                                    .send(TgManagerCommand::Get {
-                                        user_id: ans.clone(),
-                                        reply_to: send,
-                                    })
-                                    .await
-                                    .is_err()
-                                {
-                                    cx.answer("Can't request data").await?;
-                                };
-
-                                match recv.await {
-                                    Ok(value) => {
-                                        cx.answer(format!("I have an answer: {} ", value)).await?
-                                    }
-                                    Err(_) => cx.answer("No data available").await?,
-                                };
-                                next(dialogue)
-                            }
-                        }
-                    } else {
-                        next(dialogue)
-                    }
-                }
-            }
-        }
-        _ => dialogue.react(cx, ans.unwrap_or(String::new())).await, //next(dialogue)
-                                                                     //	    dialogue.react(cx, ans).await
-    }
-}
-
-/// When it receives a callback from a button it edits the message with all
-/// those buttons writing a text with the selected Debian version.
-async fn callback_handler(
-    cx: UpdateWithCx<AutoSend<Bot>, CallbackQuery>,
-    stor: Arc<InMemStorage<Dialogue>>,
-) -> Result<(), Box<dyn StdError + Send + Sync>>
-where
-{
-    let UpdateWithCx {
-        requester: bot,
-        update: query,
-    } = cx;
-
-    if let Some(version) = query.data {
-        let text = format!("{}", version);
-
-        match query.message {
-            Some(Message { id, chat, .. }) => {
-                //                bot.edit_message_text(chat.id, id, text).await?;
-                bot.send_message(chat.id, text).await?;
-                let d = stor.get_dialogue(chat.id);
-                d.next(d);
-            }
-            None => {
-                if let Some(id) = query.inline_message_id {
-                    //                    bot.edit_message_text_inline(dbg!(id), text).await?;
-                    bot.send_message(id, text).await?;
-                }
-            }
-        }
-
-        log::info!("You chose: {}", version);
-    }
-
-    Ok(())
-}
-*/
 async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> HandlerResult {
     if let Some(version) = q.data {
         let text = format!("You chose: {}", version);
@@ -633,7 +537,12 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                                 bot.send_message(chat.id, format!("{}: {}", key, value))
                                     .await?;
                             }
-                            dialogue.update(State::Ready).await?;
+                            dialogue
+                                .update(State::Ready {
+                                    filename: filename,
+                                    item_categories: items_processed,
+                                })
+                                .await?;
                         }
                     } else {
                         log::info!("No SubCategory match!");
@@ -698,7 +607,13 @@ async fn run() {
                     }]
                     .endpoint(handle_subcategory),
                 )
-                .branch(dptree::case![State::Ready].endpoint(handle_qif_ready)),
+                .branch(
+                    dptree::case![State::Ready {
+                        filename,
+                        item_categories
+                    }]
+                    .endpoint(handle_qif_ready),
+                ),
         )
         .branch(
             Update::filter_callback_query()
