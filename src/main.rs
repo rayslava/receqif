@@ -1,4 +1,3 @@
-#![feature(stmt_expr_attributes)]
 use qif_generator::account::{Account, AccountType};
 
 use std::path::PathBuf;

@@ -584,10 +584,7 @@ async fn run() {
                 )
                 .branch(dptree::case![State::Idle].endpoint(handle_idle))
                 // No idea about `{filename, }`, but otherwise thread "'tokio-runtime-worker' panicked at '(alloc::string::String,) was requested, but not provided."
-                .branch(
-                    #[rustfmt::skip]
-		    dptree::case![State::NewJson { filename, }].endpoint(handle_json),
-                )
+                .branch(dptree::case![State::NewJson { filename }].endpoint(handle_json))
                 .branch(
                     dptree::case![State::CategorySelect {
                         filename,
