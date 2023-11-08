@@ -53,7 +53,7 @@ struct Ticket {
 }
 
 mod custom_date_format {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use serde::{self, Deserialize, Deserializer};
 
     /// The format seems alike to RFC3339 but is not compliant
@@ -65,13 +65,10 @@ mod custom_date_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        let dt = Utc
-            .datetime_from_str(&s, FORMAT)
-            .map_err(serde::de::Error::custom);
-        match dt {
-            Ok(date) => Ok(date.with_timezone(&Utc)),
-            Err(e) => Err(e),
-        }
+        let naive_dt =
+            NaiveDateTime::parse_from_str(&s, FORMAT).map_err(serde::de::Error::custom)?;
+        // Associate the NaiveDateTime with the Utc timezone
+        Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive_dt, Utc))
     }
 }
 
@@ -92,7 +89,7 @@ pub fn parse_purchase(line: &str) -> Purchase {
 }
 
 #[cfg(test)]
-mod receipt {
+mod receipttest {
     use super::*;
     use chrono::Datelike;
 
