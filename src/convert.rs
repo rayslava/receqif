@@ -9,7 +9,7 @@ use std::fs;
 
 /// Read json file with receipt and convert it into `receipt::Purchase`
 pub fn read_file(f: &str) -> receipt::Purchase {
-    let json = fs::read_to_string(f).expect(format!("Can't read file {}", f).as_str());
+    let json = fs::read_to_string(f).unwrap_or_else(|_| panic!("Can't read file {}", f));
     receipt::parse_purchase(&json)
 }
 

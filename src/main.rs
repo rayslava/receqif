@@ -67,7 +67,7 @@ fn perekrestok_filter(line: &str) -> &str {
     numfilter(
         line.trim_start()
             .trim_start_matches(char::is_numeric)
-            .trim_start_matches(&['*', ':', ' ']),
+            .trim_start_matches(['*', ':', ' ']),
     )
 }
 

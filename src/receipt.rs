@@ -215,7 +215,7 @@ mod receipt {
             name: "test".to_string(),
             sum: 1000,
         };
-        let line = format!("{}", it.to_string());
+        let line = it.to_string();
         assert_eq!(line, "test:1000");
     }
 }

@@ -1,14 +1,9 @@
 #[cfg(feature = "telegram")]
-use crate::telegram::bot_is_running;
 use crate::ui::input_category;
 use libc::isatty;
 use radix_trie::Trie;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-#[cfg(feature = "telegram")]
-use teloxide::prelude::*;
-#[cfg(feature = "telegram")]
-use tokio::runtime::Handle;
 
 /// Category statistics for single item
 #[derive(Serialize, Deserialize, Debug)]
@@ -102,7 +97,7 @@ pub fn get_category_from_tg(
 */
 /// Choose proper category or ask user
 pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> String {
-    let istty = unsafe { isatty(libc::STDOUT_FILENO as i32) } != 0;
+    let istty = unsafe { isatty(libc::STDOUT_FILENO) } != 0;
     if istty {
         let topcat = match get_top_category(item, storage) {
             Some(cat) => String::from(cat),

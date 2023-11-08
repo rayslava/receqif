@@ -10,10 +10,6 @@ use std::fmt;
 use derive_more::From;
 use std::fmt::Debug;
 use std::str::FromStr;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
 use teloxide::types::*;
 use teloxide::{
     dispatching::dialogue::InMemStorage, net::Download, prelude::*, types::File as TgFile,
@@ -87,7 +83,7 @@ enum Command {
 async fn command_handler(
     bot: Bot,
     dialogue: QIFDialogue,
-    me: teloxide::types::Me,
+    _me: teloxide::types::Me,
     msg: Message,
     cmd: Command,
 ) -> HandlerResult {
@@ -96,22 +92,28 @@ async fn command_handler(
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
                 .await?
         }
-        Command::Start => bot.send_message(msg.chat.id, format!("Starting")).await?,
-        Command::Delete => bot.send_message(msg.chat.id, format!("Deleting")).await?,
+        Command::Start => {
+            bot.send_message(msg.chat.id, "Starting".to_string())
+                .await?
+        }
+        Command::Delete => {
+            bot.send_message(msg.chat.id, "Deleting".to_string())
+                .await?
+        }
 
-        Command::Request => bot.send_message(msg.chat.id, format!("Requesting")).await?,
+        Command::Request => {
+            bot.send_message(msg.chat.id, "Requesting".to_string())
+                .await?
+        }
         Command::Cancel => {
             dialogue.update(State::Idle).await?;
-            bot.send_message(msg.chat.id, format!("Dialogue state reset"))
+            bot.send_message(msg.chat.id, "Dialogue state reset".to_string())
                 .await?
         }
     };
 
     Ok(())
 }
-
-#[cfg(feature = "telegram")]
-static IS_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "telegram")]
 async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
@@ -123,70 +125,6 @@ async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileRe
     downloader.download_file(&path, &mut file).await?;
     Ok(filepath)
 }
-
-/*
-#[cfg(feature = "telegram")]
-async fn convert_file(
-    jsonfile: &str,
-    user: &mut User,
-    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
-) -> Result<String, FileConvertError> {
-    let filepath = format!("{}.qif", jsonfile);
-    log::info!("Converting file into {}", filepath);
-    let mut file = File::create(&filepath).await?;
-    log::info!("Got file");
-    for i in non_cat_items(jsonfile, user) {
-        log::info!("Message about {}", i);
-        let newcat = input_category_from_tg(&i, &user.catmap, &user.accounts, ctx).await;
-        ctx.answer(format!("{} is set to {}", i, newcat))
-            .await
-            .unwrap();
-    }
-    let acc = Account::new()
-        .name("Wallet")
-        .account_type(AccountType::Cash)
-        .build();
-
-    let cat = &|item: &str, stats: &mut CatStats, accounts: &[String]| -> String {
-        get_category_from_tg(item, stats, accounts, ctx)
-    };
-    let t = convert(jsonfile, "Test", user, &acc, cat)?;
-    file.write(acc.to_string().as_bytes()).await?;
-    file.write(t.to_string().as_bytes()).await?;
-    Ok(filepath)
-}
-*/
-#[cfg(feature = "telegram")]
-pub fn bot_is_running() -> bool {
-    IS_RUNNING.load(Ordering::SeqCst)
-}
-/*
-#[cfg(feature = "telegram")]
-pub async fn input_category_from_tg(
-    item: &str,
-    _cats: &CatStats,
-    accounts: &[String],
-    cx: &UpdateWithCx<AutoSend<Bot>, Message>,
-) -> String {
-    log::info!("{:?}", accounts);
-    let keyboard = InlineKeyboardMarkup::default().append_row(
-        accounts
-            .iter()
-            .filter(|l| l.starts_with("Expenses:"))
-            .map(|line| {
-                InlineKeyboardButton::new(
-                    line.strip_prefix("Expenses:").unwrap(),
-                    InlineKeyboardButtonKind::CallbackData(line.into()),
-                )
-            }),
-    );
-    cx.answer(format!("Input category for {}", item))
-        .reply_markup(ReplyMarkup::InlineKeyboard(keyboard))
-        .await
-        .unwrap();
-    String::new()
-}
- */
 
 #[derive(Clone, Debug)]
 pub enum State {
@@ -231,8 +169,8 @@ impl fmt::Display for State {
             State::CategorySelect {
                 filename,
                 item,
-                items_left,
-                items_processed,
+                items_left: _,
+                items_processed: _,
             } => {
                 write!(f, "Category: {}, {}", filename, item)
             }
@@ -240,8 +178,8 @@ impl fmt::Display for State {
                 filename,
                 item,
                 category,
-                items_left,
-                items_processed,
+                items_left: _,
+                items_processed: _,
             } => write!(f, "SubCategory: {}, {}, {}", filename, item, category),
             State::Ready {
                 filename,
@@ -272,7 +210,7 @@ async fn handle_json(
     bot: Bot,
     dialogue: QIFDialogue,
     msg: Message,
-    (filename,): (String,), // Available from `State::Idle`.
+    filename: String, // Available from `State::Idle`.
 ) -> HandlerResult {
     log::info!("File {}", &filename);
     let mut is_file = false;
@@ -293,7 +231,7 @@ async fn handle_json(
         bot.send_message(msg.chat.id, format!("New file received!!!111 {}", file_id))
             .await?;
     } else {
-        bot.send_message(msg.chat.id, format!("Not supported file sent"))
+        bot.send_message(msg.chat.id, "Unsupported file format".to_string())
             .await?;
     }
 
@@ -379,11 +317,6 @@ async fn handle_category(
         return Ok(());
     };
 
-    let userid = if let Some(user) = msg.from() {
-        user.id.0
-    } else {
-        0
-    };
     let keyboard = InlineKeyboardMarkup::default().append_row(
         accounts
             .into_iter()
@@ -432,10 +365,10 @@ async fn handle_subcategory(
     ), // Available from `State::SubCategory`.
 ) -> HandlerResult {
     match msg.text() {
-        Some(subcategory) => {
+        Some(_subcategory) => {
             bot.send_message(msg.chat.id, "Item ready").await?;
             items_processed.insert(item, category);
-            if items_left.len() > 0 {
+            if !items_left.is_empty() {
                 if let Some(nextitem) = items_left.pop() {
                     dialogue
                         .update(State::CategorySelect {
@@ -470,20 +403,21 @@ async fn handle_qif_ready(
     (filename, item_categories): (String, HashMap<String, String>), // Available from `State::Ready`.
 ) -> HandlerResult {
     let mut user = User::new(msg.chat.id.0, &None);
+    let memo: &str = msg.text().unwrap_or("purchase");
 
     let acc = Account::new()
         .name("Reiffeisen")
         .account_type(AccountType::Bank)
         .build();
 
-    let cat = &|item: &str, stats: &mut categories::CatStats, acc: &[String]| -> String {
+    let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &[String]| -> String {
         item_categories
-            .get(&format!("{}", &item))
+            .get(&(&item).to_string())
             .unwrap()
             .to_owned()
     };
 
-    let t = convert(&filename, "testmemo", &mut user, &acc, nofilter, cat).unwrap();
+    let t = convert(&filename, memo, &mut user, &acc, nofilter, cat).unwrap();
     let qif = InputFile::memory(format!("{}{}", acc, t).into_bytes());
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     bot.send_document(msg.chat.id, qif).await?;
@@ -504,7 +438,7 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                     if let State::SubCategorySelect {
                         filename,
                         item,
-                        category,
+                        category: _,
                         mut items_left,
                         mut items_processed,
                     } = data
@@ -531,15 +465,17 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                                 })
                                 .await?;
                         } else {
-                            bot.send_message(chat.id, format!("This was the last item!"))
+                            bot.send_message(chat.id, "This was the last item!".to_string())
                                 .await?;
                             for (key, value) in &items_processed {
                                 bot.send_message(chat.id, format!("{}: {}", key, value))
                                     .await?;
                             }
+                            bot.send_message(chat.id, "Enter the memo line".to_string())
+                                .await?;
                             dialogue
                                 .update(State::Ready {
-                                    filename: filename,
+                                    filename,
                                     item_categories: items_processed,
                                 })
                                 .await?;
@@ -564,8 +500,7 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
 async fn run() {
     //    teloxide::enable_logging!();
     log::info!("Starting telegram bot");
-    IS_RUNNING.store(true, Ordering::SeqCst);
-    let (tx, mut rx) = mpsc::channel(32);
+    let (_tx, mut rx) = mpsc::channel(32);
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
 
@@ -625,5 +560,4 @@ async fn run() {
         .await;
 
     drop(manager);
-    IS_RUNNING.store(false, Ordering::SeqCst);
 }
