@@ -4,7 +4,7 @@ name: receqif
 
 steps:
 - name: build and test
-  image: rust:1.66
+  image: rust:1.73
   commands:
   - rustup default nightly
   - cargo build --verbose --all
