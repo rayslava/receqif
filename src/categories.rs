@@ -152,7 +152,7 @@ mod tests {
         let stats = cm.get("item").unwrap();
         assert_eq!(stats[0].category, "category");
         assert_eq!(stats[0].hits, 1);
-        let topcat = get_top_category("item", &mut cm).unwrap();
+        let topcat = get_top_category("item", &cm).unwrap();
         assert_eq!(topcat, "category");
     }
 }
