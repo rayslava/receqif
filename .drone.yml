@@ -21,3 +21,15 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+
+- name: deploy service into kubernetes
+  image: quay.io/honestbee/drone-kubernetes
+  settings:
+    kubernetes_server: https://192.168.88.5:6443
+    kubernetes_token:
+      from_secret: kubernetes_token
+    namespace: receqif
+    deployment: receqif-deploy
+    repo: registry.dhaenuur.home.rayslava.com/receqif
+    container: receqif
+    tag: latest
