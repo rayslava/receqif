@@ -36,3 +36,4 @@ pkg-config = { version = "0.3", optional = true }
 default = [ "telegram" ]
 tv = [ "cc", "pkg-config" ]
 telegram = [ "teloxide", "log", "pretty_env_logger", "tokio", "tokio-stream", "derive_more", "thiserror", "futures", "anyhow" ]
+docker = []

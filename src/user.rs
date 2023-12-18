@@ -17,7 +17,11 @@ pub struct User {
     db: PickleDb,
 }
 
+#[cfg(not(feature = "docker"))]
 pub const DEFAULT_DB_PATH: &str = "~/.config/receqif/";
+
+#[cfg(feature = "docker")]
+pub const DEFAULT_DB_PATH: &str = "/etc/receqif/";
 
 impl Drop for User {
     fn drop(&mut self) {
