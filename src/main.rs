@@ -7,6 +7,8 @@ use structopt::StructOpt;
 mod categories;
 mod convert;
 mod import;
+#[cfg(feature = "monitoring")]
+mod monitoring;
 mod receipt;
 #[cfg(feature = "telegram")]
 mod telegram;

@@ -2,6 +2,8 @@ use crate::categories;
 use crate::convert::{convert, non_cat_items};
 use qif_generator::account::{Account, AccountType};
 
+#[cfg(feature = "monitoring")]
+use crate::monitoring;
 use crate::tgusermanager::user_manager;
 use crate::user::User;
 use std::collections::HashMap;
@@ -213,6 +215,9 @@ async fn handle_json(
     filename: String, // Available from `State::Idle`.
 ) -> HandlerResult {
     log::info!("File {}", &filename);
+    #[cfg(feature = "monitoring")]
+    monitoring::INCOMING_REQUESTS.inc();
+
     let mut is_file = false;
     let mut file_id: String = "".to_string();
     {
@@ -498,7 +503,9 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
 
 #[cfg(feature = "telegram")]
 async fn run() {
-    //    teloxide::enable_logging!();
+    #[cfg(feature = "monitoring")]
+    let monitoring_handle = tokio::spawn(async { monitoring::web_main().await });
+
     log::info!("Starting telegram bot");
     let (_tx, mut rx) = mpsc::channel(32);
 
@@ -560,4 +567,6 @@ async fn run() {
         .await;
 
     drop(manager);
+    #[cfg(feature = "monitoring")]
+    monitoring_handle.await.unwrap();
 }
