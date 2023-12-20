@@ -13,23 +13,6 @@ pub fn read_file(f: &str) -> receipt::Purchase {
     receipt::parse_purchase(&json)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn test_read_receipt() {
-        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        p.push("tests/resources/test.json");
-        let full_path = p.to_string_lossy();
-
-        let result = read_file(&full_path).items;
-        assert_eq!(result[0].name, "СИДР 0.5 MAGNERS APP");
-        assert_eq!(result[0].sum, 17713);
-    }
-}
-
 /// Generate set of QIF Splits from a Purchase items
 pub fn gen_splits<F, C>(
     items: &[receipt::Item],
@@ -121,4 +104,21 @@ where
         &categorizer,
     );
     gen_trans(acc, purchase.date(), purchase.total_sum(), memo, splits)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_read_receipt() {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("tests/resources/test.json");
+        let full_path = p.to_string_lossy();
+
+        let result = read_file(&full_path).items;
+        assert_eq!(result[0].name, "СИДР 0.5 MAGNERS APP");
+        assert_eq!(result[0].sum, 17713);
+    }
 }
