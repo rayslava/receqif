@@ -32,4 +32,6 @@ steps:
     deployment: receqif-deploy
     repo: registry.dhaenuur.home.rayslava.com/receqif
     container: receqif
-    tag: latest
+    tag: ${DRONE_COMMIT_SHA:8}
+    when:
+      branch: [ master ]
