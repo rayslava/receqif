@@ -51,7 +51,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release
+          args: --release --features monitoring
 
       - name: Collect test coverage
         uses: actions-rs/tarpaulin@v0.1
@@ -60,7 +60,7 @@ jobs:
           version: '0.16.0'
           out-type: Xml
           run-types: 'Tests'
-          args: '--force-clean -- --test-threads 1'
+          args: '--force-clean --features monitoring -- --test-threads 1 '
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2

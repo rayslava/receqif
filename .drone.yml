@@ -7,8 +7,8 @@ steps:
   image: rust:1.73
   commands:
   - rustup default nightly
-  - cargo build --verbose --all
-  - cargo test --verbose --all
+  - cargo build --verbose --all --features docker
+  - cargo test --verbose --all --features docker
 
 - name: build docker image
   image: plugins/docker

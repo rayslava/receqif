@@ -36,6 +36,9 @@ rand = { version = "0.8", optional = true }
 cc = { version = "1.0", optional = true }
 pkg-config = { version = "0.3", optional = true }
 
+[dev-dependencies]
+reqwest = "0.11"
+
 [features]
 default = [ "telegram" ]
 tv = [ "cc", "pkg-config" ]

@@ -1426,6 +1426,7 @@ dependencies = [
  "qif_generator",
  "radix_trie",
  "rand",
+ "reqwest",
  "rustyline",
  "rustyline-derive",
  "serde",
