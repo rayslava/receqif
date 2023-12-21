@@ -21,12 +21,6 @@ use thiserror::Error;
 use tokio::fs::File;
 use tokio::sync::mpsc;
 
-// impl Into<i64> for ChatId {
-//     fn into(self) -> i64 {
-//         self.0
-//     }
-// }
-
 #[cfg(feature = "telegram")]
 #[tokio::main]
 pub async fn bot() {
@@ -117,7 +111,6 @@ async fn command_handler(
     Ok(())
 }
 
-#[cfg(feature = "telegram")]
 async fn download_file(downloader: &Bot, file_id: &str) -> Result<String, FileReceiveError> {
     let TgFile { path, .. } = downloader.get_file(file_id).send().await?;
     log::info!("Attempt to download file");
@@ -504,7 +497,7 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
 #[cfg(feature = "telegram")]
 async fn run() {
     #[cfg(feature = "monitoring")]
-    let monitoring_handle = tokio::spawn(async { monitoring::web_main().await });
+    let monitoring_handle = tokio::spawn(async move { monitoring::web_main().await });
 
     log::info!("Starting telegram bot");
     let (_tx, mut rx) = mpsc::channel(32);
@@ -525,7 +518,6 @@ async fn run() {
                         .endpoint(command_handler),
                 )
                 .branch(dptree::case![State::Idle].endpoint(handle_idle))
-                // No idea about `{filename, }`, but otherwise thread "'tokio-runtime-worker' panicked at '(alloc::string::String,) was requested, but not provided."
                 .branch(dptree::case![State::NewJson { filename }].endpoint(handle_json))
                 .branch(
                     dptree::case![State::CategorySelect {
