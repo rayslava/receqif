@@ -16,6 +16,7 @@ steps:
     repo: registry.dhaenuur.home.rayslava.com/receqif
     tags:
     - ${DRONE_COMMIT_SHA:8}
+    cache_from: "registry.dhaenuur.home.rayslava.com/receqif:latest"
     registry: registry.dhaenuur.home.rayslava.com
     username:
       from_secret: docker_username
