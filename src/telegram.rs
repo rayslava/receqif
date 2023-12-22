@@ -1,5 +1,5 @@
 use crate::categories;
-use crate::convert::{convert, non_cat_items};
+use crate::convert::{auto_cat_items, convert, non_cat_items};
 use qif_generator::account::{Account, AccountType};
 
 #[cfg(feature = "monitoring")]
@@ -234,13 +234,8 @@ async fn handle_json(
     }
 
     if let Ok(newfile) = download_file(&bot, &file_id).await {
-        bot.send_message(msg.chat.id, format!("File received: {:} ", newfile))
-            .await?;
+        log::info!("Active user: {:} File received: {:} ", msg.chat.id, newfile);
         let user = User::new(msg.chat.id.0, &None);
-        bot.send_message(msg.chat.id, format!("Active user: {:} ", msg.chat.id))
-            .await?;
-        let filepath = format!("{}.qif", &newfile);
-        log::info!("Received file {}", &filepath);
         let mut i = non_cat_items(&newfile, &user);
         if let Some(item) = i.pop() {
             log::info!("No category for {}", &item);
@@ -258,7 +253,25 @@ async fn handle_json(
                 })
                 .await?;
         } else {
-            log::info!("Empty state 2");
+            log::info!("No items to pop");
+            if let Ok(items) = auto_cat_items(&newfile, &user) {
+                bot.send_message(
+                    msg.chat.id,
+                    "All the items were categorized automatically\nEnter the memo line".to_string(),
+                )
+                .await?;
+                dialogue
+                    .update(State::Ready {
+                        filename: newfile,
+                        item_categories: items,
+                    })
+                    .await?;
+            } else {
+                log::warn!("Malformed json or categorization problem");
+                bot.send_message(msg.chat.id, "Can't parse the provided file".to_string())
+                    .await?;
+                dialogue.update(State::Idle).await?;
+            }
         }
     }
     Ok(())

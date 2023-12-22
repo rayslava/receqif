@@ -37,6 +37,7 @@ fn register_custom_metrics() {
     // Add more metrics here as needed
 }
 
+#[cfg(not(tarpaulin_include))]
 pub async fn web_main() {
     register_custom_metrics();
 

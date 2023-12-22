@@ -5,6 +5,7 @@ use crate::receipt;
 use crate::user::User;
 use chrono::{DateTime, Utc};
 use qif_generator::{account::Account, split::Split, transaction::Transaction};
+use std::collections::HashMap;
 use std::fs;
 
 /// Read json file with receipt and convert it into `receipt::Purchase`
@@ -80,6 +81,21 @@ pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
         }
     }
     result
+}
+
+/// Build a fully automatically categorized list
+#[cfg(feature = "telegram")]
+pub fn auto_cat_items(filename: &str, user: &User) -> Result<HashMap<String, String>, ()> {
+    let file = read_file(filename);
+    let mut result: HashMap<String, String> = HashMap::new();
+    for i in file.items {
+        if let Some(category) = get_top_category(i.name.as_str(), &user.catmap) {
+            result.insert(i.name, category.to_string());
+        } else {
+            return Err(());
+        }
+    }
+    Ok(result)
 }
 
 /// Convert `filename` into a QIF transaction
