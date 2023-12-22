@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use prometheus::{IntCounter, Registry};
 use std::result::Result;
+#[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
 use warp::{Filter, Rejection, Reply};
 

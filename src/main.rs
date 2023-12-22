@@ -1,6 +1,6 @@
 use qif_generator::account::{Account, AccountType};
 
-use pretty_env_logger::env_logger;
+use log::LevelFilter;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -80,7 +80,9 @@ fn nofilter(line: &str) -> &str {
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
-    env_logger::init();
+    pretty_env_logger::formatted_builder()
+        .filter_level(LevelFilter::Info)
+        .init();
 
     log::debug!("Log started");
     let args = Cli::from_args();
