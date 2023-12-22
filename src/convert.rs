@@ -35,6 +35,9 @@ where
             .build();
 
         result.push(t);
+
+        #[cfg(feature = "monitoring")]
+        crate::monitoring::PROCESSED_ITEMS.inc();
     }
     result
 }

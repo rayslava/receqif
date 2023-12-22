@@ -8,6 +8,8 @@ use warp::{Filter, Rejection, Reply};
 lazy_static! {
     pub static ref INCOMING_REQUESTS: IntCounter =
         IntCounter::new("incoming_requests", "Incoming Requests").expect("metric can be created");
+    pub static ref PROCESSED_ITEMS: IntCounter =
+        IntCounter::new("processed_items", "Processed Items").expect("metric can be created");
     pub static ref REGISTRY: Registry = Registry::new();
 }
 
@@ -25,7 +27,9 @@ fn register_custom_metrics() {
         REGISTRY
             .register(Box::new(INCOMING_REQUESTS.clone()))
             .expect("collector can be registered");
-        // Add more metrics here as needed
+        REGISTRY
+            .register(Box::new(PROCESSED_ITEMS.clone()))
+            .expect("collector can be registered");
     }
 }
 
@@ -34,7 +38,9 @@ fn register_custom_metrics() {
     REGISTRY
         .register(Box::new(INCOMING_REQUESTS.clone()))
         .expect("collector can be registered");
-    // Add more metrics here as needed
+    REGISTRY
+        .register(Box::new(PROCESSED_ITEMS.clone()))
+        .expect("collector can be registered");
 }
 
 #[cfg(not(tarpaulin_include))]
