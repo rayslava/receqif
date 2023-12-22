@@ -18,5 +18,7 @@ COPY --from=builder /usr/local/cargo/bin/receqif /bin/receqif
 USER 1000
 ARG TELEGRAM_TOKEN
 ENV TELOXIDE_TOKEN=$TELEGRAM_TOKEN
+ARG LOG_LEVEL
+ENV LOG_LEVEL=$LOG_LEVEL
 VOLUME ["/etc/receqif"]
 ENTRYPOINT ["/bin/receqif", "--telegram"]
