@@ -421,11 +421,18 @@ async fn handle_qif_ready(
         .account_type(AccountType::Bank)
         .build();
 
+    for (i, c) in &item_categories {
+        if c.is_empty() {
+            log::error!("QIF is ready with no category for item {:}", i);
+            bot.send_message(msg.chat.id, "Internal error happened".to_string())
+                .await?;
+            dialogue.update(State::Idle).await?;
+            return Ok(());
+        }
+    }
+
     let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &[String]| -> String {
-        item_categories
-            .get(&(&item).to_string())
-            .unwrap()
-            .to_owned()
+        item_categories.get(item).unwrap().to_owned()
     };
 
     let t = convert(&filename, memo, &mut user, &acc, nofilter, cat).unwrap();
