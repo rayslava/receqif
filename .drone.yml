@@ -7,8 +7,11 @@ steps:
   image: rust:1.73
   commands:
   - rustup default nightly
+  - rustup component add rustfmt clippy
+  - cargo fmt --all -- --check
   - cargo build --verbose --all --features docker
   - cargo test --verbose --all --features docker
+  - cargo clippy
 
 - name: build docker image
   image: plugins/docker
