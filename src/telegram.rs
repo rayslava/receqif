@@ -1,5 +1,5 @@
 use crate::categories;
-use crate::convert::{auto_cat_items, convert, non_cat_items};
+use crate::convert::{auto_cat_items, convert};
 use qif_generator::account::{Account, AccountType};
 
 #[cfg(feature = "monitoring")]
@@ -238,8 +238,25 @@ async fn handle_json(
     if let Ok(newfile) = download_file(&bot, &file_id).await {
         log::info!("Active user: {:} File received: {:} ", msg.chat.id, newfile);
         let user = User::new(msg.chat.id.0, &None);
-        let mut i = non_cat_items(&newfile, &user);
-        if let Some(item) = i.pop() {
+        let (cat, mut uncat) = auto_cat_items(&newfile, &user);
+
+        log::debug!("Categorized item list: {:?}", cat);
+        log::debug!("Non-categorized item list: {:?}", uncat);
+
+        if uncat.is_empty() {
+            log::info!("Automatically categorized");
+            bot.send_message(
+                msg.chat.id,
+                "All the items were categorized automatically\nEnter the memo line".to_string(),
+            )
+            .await?;
+            dialogue
+                .update(State::Ready {
+                    filename: newfile,
+                    item_categories: cat,
+                })
+                .await?;
+        } else if let Some(item) = uncat.pop() {
             log::info!("No category for {}", &item);
             bot.send_message(
                 msg.chat.id,
@@ -250,36 +267,24 @@ async fn handle_json(
                 .update(State::CategorySelect {
                     filename: newfile,
                     item,
-                    items_left: i,
-                    items_processed: HashMap::new(),
+                    items_left: uncat,
+                    items_processed: cat,
                 })
                 .await?;
         } else {
-            log::info!("No items to pop");
-            if let Ok(items) = auto_cat_items(&newfile, &user) {
-                bot.send_message(
-                    msg.chat.id,
-                    "All the items were categorized automatically\nEnter the memo line".to_string(),
-                )
-                .await?;
-                dialogue
-                    .update(State::Ready {
-                        filename: newfile,
-                        item_categories: items,
-                    })
-                    .await?;
-            } else {
-                log::warn!("Malformed json or categorization problem");
-                bot.send_message(msg.chat.id, "Can't parse the provided file".to_string())
-                    .await?;
-                dialogue
-                    .update(State::NewJson {
-                        filename: String::new(),
-                    })
-                    .await?;
-            }
+            log::error!("Can't pop from non-empty list");
         }
+    } else {
+        log::warn!("Malformed json or categorization problem");
+        bot.send_message(msg.chat.id, "Can't parse the provided file".to_string())
+            .await?;
+        dialogue
+            .update(State::NewJson {
+                filename: String::new(),
+            })
+            .await?;
     }
+
     Ok(())
 }
 
@@ -398,7 +403,13 @@ async fn handle_subcategory(
                         })
                         .await?;
                 } else {
-                    bot.send_message(msg.chat.id, "Can't pop next item :(")
+                    log::error!("Can't pop next item :(");
+                    bot.send_message(msg.chat.id, "Internal error happened".to_string())
+                        .await?;
+                    dialogue
+                        .update(State::NewJson {
+                            filename: String::new(),
+                        })
                         .await?;
                 }
             }
@@ -430,6 +441,7 @@ async fn handle_qif_ready(
         .account_type(AccountType::Bank)
         .build();
 
+    // TODO: Check if we need to assign categories by default
     for (i, c) in &item_categories {
         if c.is_empty() {
             log::error!("QIF is ready with no category for item {:}", i);
@@ -442,6 +454,8 @@ async fn handle_qif_ready(
                 .await?;
             return Ok(());
         }
+
+        categories::assign_category(i, c, &mut user.catmap);
     }
 
     let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &[String]| -> String {
@@ -452,6 +466,7 @@ async fn handle_qif_ready(
     let qif = InputFile::memory(format!("{}{}", acc, t).into_bytes());
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     bot.send_document(msg.chat.id, qif).await?;
+
     dialogue
         .update(State::NewJson {
             filename: String::new(),
@@ -503,10 +518,15 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                         } else {
                             bot.send_message(chat.id, "This was the last item!".to_string())
                                 .await?;
-                            for (key, value) in &items_processed {
-                                bot.send_message(chat.id, format!("{}: {}", key, value))
-                                    .await?;
-                            }
+                            let listgen = || -> String {
+                                let mut res = String::new();
+                                for (item, category) in &items_processed {
+                                    res.push_str(format!("{}: {}\n", item, category).as_str());
+                                }
+                                res
+                            };
+                            bot.send_message(chat.id, listgen()).await?;
+
                             bot.send_message(chat.id, "Enter the memo line".to_string())
                                 .await?;
                             dialogue

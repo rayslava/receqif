@@ -74,27 +74,6 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
     storage.get(item).map(|s| -> &'a str { &s[0].category })
 }
 
-/// Request category from user via telegram interface
-/*
-#[cfg(feature = "telegram")]
-pub fn get_category_from_tg(
-    item: &str,
-    storage: &mut CatStats,
-    accounts: &[String],
-    ctx: &UpdateWithCx<AutoSend<Bot>, Message>,
-) -> String {
-    if bot_is_running() {
-        let future = async move { input_category_from_tg(item, storage, accounts, ctx).await };
-        if let Ok(handle) = Handle::try_current() {
-            tokio::task::block_in_place(move || handle.block_on(future))
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    }
-}
-*/
 /// Choose proper category or ask user
 pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> String {
     let istty = unsafe { isatty(libc::STDOUT_FILENO) } != 0;

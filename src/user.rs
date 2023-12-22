@@ -25,8 +25,7 @@ pub const DEFAULT_DB_PATH: &str = "/etc/receqif/";
 
 impl Drop for User {
     fn drop(&mut self) {
-        self.db.set("catmap", &self.catmap).unwrap();
-        self.db.dump().unwrap();
+        self.save_data();
     }
 }
 
@@ -74,5 +73,11 @@ impl User {
 
     pub fn accounts(&mut self, acc: Vec<String>) {
         self.accounts = acc;
+    }
+
+    pub fn save_data(&mut self) {
+        log::debug!("Saving user data");
+        self.db.set("catmap", &self.catmap).unwrap();
+        self.db.dump().unwrap();
     }
 }

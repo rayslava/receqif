@@ -69,33 +69,20 @@ pub fn gen_trans<'a>(
     }
 }
 
-/// Check if all items in `filename` do have a category assigned by `user`
-#[cfg(feature = "telegram")]
-pub fn non_cat_items(filename: &str, user: &User) -> Vec<String> {
-    let file = read_file(filename);
-    let mut result: Vec<String> = Vec::new();
-    for i in file.items {
-        match get_top_category(i.name.as_str(), &user.catmap) {
-            Some(_) => (),
-            None => result.push(String::from(i.name.as_str())),
-        }
-    }
-    result
-}
-
 /// Build a fully automatically categorized list
 #[cfg(feature = "telegram")]
-pub fn auto_cat_items(filename: &str, user: &User) -> Result<HashMap<String, String>, ()> {
+pub fn auto_cat_items(filename: &str, user: &User) -> (HashMap<String, String>, Vec<String>) {
     let file = read_file(filename);
-    let mut result: HashMap<String, String> = HashMap::new();
+    let mut categorized: HashMap<String, String> = HashMap::new();
+    let mut uncategorized: Vec<String> = Vec::new();
     for i in file.items {
         if let Some(category) = get_top_category(i.name.as_str(), &user.catmap) {
-            result.insert(i.name, category.to_string());
+            categorized.insert(i.name, category.to_string());
         } else {
-            return Err(());
+            uncategorized.push(i.name)
         }
     }
-    Ok(result)
+    (categorized, uncategorized)
 }
 
 /// Convert `filename` into a QIF transaction
