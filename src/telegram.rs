@@ -458,6 +458,22 @@ async fn handle_qif_ready(
         categories::assign_category(i, c, &mut user.catmap);
     }
 
+    let listgen = || -> String {
+        let mut res = String::new();
+        for (item, category) in &item_categories {
+            res.push_str(format!("{}: {}\n", item, category).as_str());
+        }
+        res
+    };
+    bot.send_message(
+        msg.chat.id,
+        format!(
+            "Items are categorized and categories are updated:\n\n{}",
+            listgen()
+        ),
+    )
+    .await?;
+
     let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &[String]| -> String {
         item_categories.get(item).unwrap().to_owned()
     };
@@ -518,15 +534,6 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                         } else {
                             bot.send_message(chat.id, "This was the last item!".to_string())
                                 .await?;
-                            let listgen = || -> String {
-                                let mut res = String::new();
-                                for (item, category) in &items_processed {
-                                    res.push_str(format!("{}: {}\n", item, category).as_str());
-                                }
-                                res
-                            };
-                            bot.send_message(chat.id, listgen()).await?;
-
                             bot.send_message(chat.id, "Enter the memo line".to_string())
                                 .await?;
                             dialogue
