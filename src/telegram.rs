@@ -192,6 +192,7 @@ type QIFDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 async fn handle_idle(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerResult {
+    log::debug!("Idle state");
     bot.send_message(msg.chat.id, "Upload your file").await?;
     dialogue
         .update(State::NewJson {
@@ -207,6 +208,7 @@ async fn handle_json(
     msg: Message,
     filename: String, // Available from `State::Idle`.
 ) -> HandlerResult {
+    log::debug!("JSON state");
     log::info!("File {}", &filename);
     #[cfg(feature = "monitoring")]
     monitoring::INCOMING_REQUESTS.inc();
@@ -270,7 +272,11 @@ async fn handle_json(
                 log::warn!("Malformed json or categorization problem");
                 bot.send_message(msg.chat.id, "Can't parse the provided file".to_string())
                     .await?;
-                dialogue.update(State::Idle).await?;
+                dialogue
+                    .update(State::NewJson {
+                        filename: String::new(),
+                    })
+                    .await?;
             }
         }
     }
@@ -288,6 +294,7 @@ async fn handle_category(
         HashMap<String, String>,
     ), // Available from `State::NewJson`.
 ) -> HandlerResult {
+    log::debug!("Category state");
     let version = msg.text();
     if version.is_none() {
         bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
@@ -375,6 +382,7 @@ async fn handle_subcategory(
         HashMap<String, String>,
     ), // Available from `State::SubCategory`.
 ) -> HandlerResult {
+    log::debug!("SubCategory state");
     match msg.text() {
         Some(_subcategory) => {
             bot.send_message(msg.chat.id, "Item ready").await?;
@@ -413,6 +421,7 @@ async fn handle_qif_ready(
     msg: Message,
     (filename, item_categories): (String, HashMap<String, String>), // Available from `State::Ready`.
 ) -> HandlerResult {
+    log::debug!("QIF Ready state");
     let mut user = User::new(msg.chat.id.0, &None);
     let memo: &str = msg.text().unwrap_or("purchase");
 
@@ -426,7 +435,11 @@ async fn handle_qif_ready(
             log::error!("QIF is ready with no category for item {:}", i);
             bot.send_message(msg.chat.id, "Internal error happened".to_string())
                 .await?;
-            dialogue.update(State::Idle).await?;
+            dialogue
+                .update(State::NewJson {
+                    filename: String::new(),
+                })
+                .await?;
             return Ok(());
         }
     }
@@ -439,7 +452,12 @@ async fn handle_qif_ready(
     let qif = InputFile::memory(format!("{}{}", acc, t).into_bytes());
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     bot.send_document(msg.chat.id, qif).await?;
-    dialogue.update(State::Idle).await?;
+    dialogue
+        .update(State::NewJson {
+            filename: String::new(),
+        })
+        .await?;
+
     Ok(())
 }
 
