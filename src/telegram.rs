@@ -74,6 +74,9 @@ enum Command {
 
     #[command(description = "Cancel processing of current file")]
     Cancel,
+
+    #[command(description = "Create new account")]
+    NewAccount { account: String },
 }
 
 async fn command_handler(
@@ -104,6 +107,12 @@ async fn command_handler(
         Command::Cancel => {
             dialogue.update(State::Idle).await?;
             bot.send_message(msg.chat.id, "Dialogue state reset".to_string())
+                .await?
+        }
+        Command::NewAccount { account } => {
+            let mut user = User::new(msg.chat.id.0, &None);
+            user.new_account(account);
+            bot.send_message(msg.chat.id, "Account added".to_string())
                 .await?
         }
     };
