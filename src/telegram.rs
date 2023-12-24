@@ -77,6 +77,9 @@ enum Command {
 
     #[command(description = "Create new account")]
     NewAccount { account: String },
+
+    #[command(description = "List accounts")]
+    Accounts,
 }
 
 async fn command_handler(
@@ -114,6 +117,30 @@ async fn command_handler(
             user.new_account(account);
             bot.send_message(msg.chat.id, "Account added".to_string())
                 .await?
+        }
+        Command::Accounts => {
+            let user = User::new(msg.chat.id.0, &None);
+
+            let list = |expense_set: &HashSet<String>| {
+                let mut sorted_expenses: Vec<String> = expense_set
+                    .iter()
+                    .filter(|s| s.starts_with("Expenses:"))
+                    .map(|s| s.trim_start_matches("Expenses:").to_owned())
+                    .collect();
+
+                sorted_expenses.sort();
+
+                sorted_expenses
+                    .into_iter()
+                    .map(|s| s + "\n")
+                    .collect::<String>()
+            };
+
+            bot.send_message(
+                msg.chat.id,
+                format!("Expense accounts:\n\n{}", list(&user.accounts)),
+            )
+            .await?
         }
     };
 
