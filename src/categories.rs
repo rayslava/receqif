@@ -4,6 +4,7 @@ use libc::isatty;
 use radix_trie::Trie;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 /// Category statistics for single item
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,7 +76,7 @@ pub fn get_top_category<'a>(item: &str, storage: &'a CatStats) -> Option<&'a str
 }
 
 /// Choose proper category or ask user
-pub fn get_category(item: &str, storage: &mut CatStats, accounts: &[String]) -> String {
+pub fn get_category(item: &str, storage: &mut CatStats, accounts: &HashSet<String>) -> String {
     let istty = unsafe { isatty(libc::STDOUT_FILENO) } != 0;
     if istty {
         let topcat = match get_top_category(item, storage) {

@@ -5,7 +5,7 @@ use crate::receipt;
 use crate::user::User;
 use chrono::{DateTime, Utc};
 use qif_generator::{account::Account, split::Split, transaction::Transaction};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 
 /// Read json file with receipt and convert it into `receipt::Purchase`
@@ -18,12 +18,12 @@ pub fn read_file(f: &str) -> receipt::Purchase {
 pub fn gen_splits<F, C>(
     items: &[receipt::Item],
     cs: &mut CatStats,
-    accounts: &[String],
+    accounts: &HashSet<String>,
     filter: F,
     categorizer: C,
 ) -> Vec<Split>
 where
-    C: Fn(&str, &mut CatStats, &[String]) -> String,
+    C: Fn(&str, &mut CatStats, &HashSet<String>) -> String,
     F: Fn(&str) -> &str,
 {
     let mut result: Vec<Split> = Vec::new();
@@ -99,7 +99,7 @@ pub fn convert<'a, F, C>(
 ) -> Result<Transaction<'a>, String>
 where
     F: Fn(&str) -> &str,
-    C: Fn(&str, &mut CatStats, &[String]) -> String,
+    C: Fn(&str, &mut CatStats, &HashSet<String>) -> String,
 {
     let purchase = &read_file(filename);
     let splits = &gen_splits(

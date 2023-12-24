@@ -6,7 +6,7 @@ use qif_generator::account::{Account, AccountType};
 use crate::monitoring;
 use crate::tgusermanager::user_manager;
 use crate::user::User;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use derive_more::From;
@@ -228,11 +228,6 @@ async fn handle_json(
 
     if is_file {
         log::info!("File {} received", file_id);
-        bot.send_message(msg.chat.id, format!("New file received!!!111 {}", file_id))
-            .await?;
-    } else {
-        bot.send_message(msg.chat.id, "Unsupported file format".to_string())
-            .await?;
     }
 
     if let Ok(newfile) = download_file(&bot, &file_id).await {
@@ -474,7 +469,7 @@ async fn handle_qif_ready(
     )
     .await?;
 
-    let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &[String]| -> String {
+    let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &HashSet<String>| -> String {
         item_categories.get(item).unwrap().to_owned()
     };
 

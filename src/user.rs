@@ -2,6 +2,7 @@ use crate::categories::CatStats;
 use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
 use radix_trie::Trie;
 use shellexpand::tilde;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ pub struct User {
     pub catmap: CatStats,
 
     /// Available accounts for the user
-    pub accounts: Vec<String>,
+    pub accounts: HashSet<String>,
 
     /// database with config
     db: PickleDb,
@@ -59,9 +60,9 @@ impl User {
             None => Trie::new(),
         };
 
-        let accounts = match db.get("accounts") {
-            Some(a) => a,
-            None => vec![],
+        let accounts = match db.get::<Vec<String>>("accounts") {
+            Some(a) => HashSet::from_iter(a),
+            None => HashSet::new(),
         };
 
         User {
@@ -72,7 +73,7 @@ impl User {
     }
 
     pub fn accounts(&mut self, acc: Vec<String>) {
-        self.accounts = acc;
+        self.accounts = HashSet::from_iter(acc);
     }
 
     pub fn save_data(&mut self) {

@@ -1,5 +1,6 @@
 use qif_generator::account::{Account, AccountType};
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -117,9 +118,10 @@ fn main() {
         .build();
 
     if let Some(filename) = &args.filename {
-        let cat = &|item: &str, stats: &mut categories::CatStats, acc: &[String]| -> String {
-            categories::get_category(filter(item), stats, acc)
-        };
+        let cat = &|item: &str,
+                    stats: &mut categories::CatStats,
+                    acc: &HashSet<String>|
+         -> String { categories::get_category(filter(item), stats, acc) };
         let t = convert::convert(filename, &args.memo, &mut user, &acc, filter, cat).unwrap();
         print!("{}", acc);
         println!("{}", t);
