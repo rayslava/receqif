@@ -280,6 +280,16 @@ async fn handle_idle(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerRe
     Ok(())
 }
 
+fn format_categories(catitems: &HashMap<String, String>) -> String {
+    catitems
+        .iter()
+        .fold(String::new(), |mut acc, (item, category)| {
+            use std::fmt::Write;
+            writeln!(&mut acc, "{}: {}", item, category).unwrap();
+            acc
+        })
+}
+
 async fn handle_json(
     bot: Bot,
     dialogue: QIFDialogue,
@@ -334,6 +344,14 @@ async fn handle_json(
 
         if uncat.is_empty() {
             log::info!("Automatically categorized");
+            bot.send_message(
+                msg.chat.id,
+                format!(
+                    "Items are categorized and categories are updated:\n\n{}",
+                    format_categories(&cat)
+                ),
+            )
+            .await?;
             bot.send_message(
                 msg.chat.id,
                 "All the items were categorized automatically\nEnter the memo line".to_string(),
@@ -579,22 +597,6 @@ async fn handle_qif_ready(
         categories::assign_category(i, c, &mut user.catmap);
     }
 
-    let listgen = || -> String {
-        let mut res = String::new();
-        for (item, category) in &item_categories {
-            res.push_str(format!("{}: {}\n", item, category).as_str());
-        }
-        res
-    };
-    bot.send_message(
-        msg.chat.id,
-        format!(
-            "Items are categorized and categories are updated:\n\n{}",
-            listgen()
-        ),
-    )
-    .await?;
-
     let cat = &|item: &str, _stats: &mut categories::CatStats, _acc: &HashSet<String>| -> String {
         item_categories.get(item).unwrap().to_owned()
     };
@@ -655,6 +657,14 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                         } else {
                             bot.send_message(chat.id, "This was the last item!".to_string())
                                 .await?;
+                            bot.send_message(
+                                chat.id,
+                                format!(
+                                    "Items are categorized and categories are updated:\n\n{}",
+                                    format_categories(&items_processed)
+                                ),
+                            )
+                            .await?;
                             bot.send_message(chat.id, "Enter the memo line".to_string())
                                 .await?;
                             dialogue
