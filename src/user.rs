@@ -24,11 +24,14 @@ pub struct User {
     db: PickleDb,
 }
 
-#[cfg(not(feature = "docker"))]
+#[cfg(all(not(test), not(feature = "docker")))]
 pub const DEFAULT_DB_PATH: &str = "~/.config/receqif/";
 
-#[cfg(feature = "docker")]
+#[cfg(all(not(test), feature = "docker"))]
 pub const DEFAULT_DB_PATH: &str = "/etc/receqif/";
+
+#[cfg(test)]
+const DEFAULT_DB_PATH: &str = "/tmp/receqif_test/";
 
 #[derive(Debug, Error, From)]
 pub enum UserError {
@@ -123,12 +126,10 @@ mod tests {
     use super::*;
     use std::fs::create_dir_all;
 
-    const TEST_DB_DIR: &str = "/tmp/receqif_test/";
-
     fn setup(db_suffix: &str) -> Result<User, Box<dyn std::error::Error>> {
-        create_dir_all(TEST_DB_DIR)?;
+        create_dir_all(DEFAULT_DB_PATH)?;
 
-        let temp_db_path = format!("{}test_user_{}.db", TEST_DB_DIR, db_suffix);
+        let temp_db_path = format!("{}test_user_{}.db", DEFAULT_DB_PATH, db_suffix);
         let user = User::new(123, &Some(temp_db_path));
         Ok(user)
     }
