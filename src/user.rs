@@ -4,12 +4,16 @@ use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
 use radix_trie::Trie;
 use shellexpand::tilde;
 use std::collections::HashSet;
+use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
 
 /// Configuration for single user
 pub struct User {
+    /// User id
+    pub uid: i64,
+
     /// Categories statistics for the user
     pub catmap: CatStats,
 
@@ -35,6 +39,15 @@ pub enum UserError {
 impl Drop for User {
     fn drop(&mut self) {
         self.save_data().unwrap();
+    }
+}
+
+impl fmt::Debug for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("User")
+            .field("uid", &self.uid)
+            .field("db", &format_args!("<PickleDb>"))
+            .finish()
     }
 }
 
@@ -74,6 +87,7 @@ impl User {
         };
 
         User {
+            uid,
             catmap,
             accounts,
             db,

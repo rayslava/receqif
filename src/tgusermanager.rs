@@ -1,15 +1,23 @@
+use crate::user::User;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
 pub enum TgManagerCommand {
     #[allow(dead_code)]
     Get {
-        user_id: String,
-        reply_to: oneshot::Sender<String>,
+        user_id: i64,
+        reply_to: oneshot::Sender<User>,
     },
 }
 
-pub async fn user_manager(rx: &mut mpsc::Receiver<TgManagerCommand>) {
+#[derive(Debug)]
+pub enum TgUserManagerError {
+    SendError,
+}
+
+pub async fn user_manager(
+    rx: &mut mpsc::Receiver<TgManagerCommand>,
+) -> Result<(), TgUserManagerError> {
     log::info!("Request came");
     while let Some(cmd) = rx.recv().await {
         use TgManagerCommand::*;
@@ -19,11 +27,12 @@ pub async fn user_manager(rx: &mut mpsc::Receiver<TgManagerCommand>) {
             Get { user_id, reply_to } => {
                 log::info!("{}", format!("Get command found, sending {}", user_id));
                 reply_to
-                    .send(format!("You've requested {}", user_id))
-                    .unwrap();
+                    .send(User::new(user_id, &None))
+                    .map_err(|_| TgUserManagerError::SendError)?
             }
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -37,11 +46,11 @@ mod tgusertest {
         let (response_tx, response_rx) = oneshot::channel();
 
         tokio::spawn(async move {
-            user_manager(&mut rx).await;
+            user_manager(&mut rx).await.unwrap();
         });
 
         tx.send(TgManagerCommand::Get {
-            user_id: "0".to_string(),
+            user_id: 0,
             reply_to: response_tx,
         })
         .await
@@ -49,7 +58,7 @@ mod tgusertest {
 
         // Now, await the response from the user_manager function
         if let Ok(response) = response_rx.await {
-            println!("Received response: {}", response);
+            println!("Received response: {:?}", response);
         } else {
             println!("The sender dropped without sending a response");
         }

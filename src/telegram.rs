@@ -5,13 +5,14 @@ use qif_generator::account::{Account, AccountType};
 #[cfg(feature = "monitoring")]
 use crate::monitoring;
 use crate::tgusermanager::user_manager;
-use crate::user::User;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+use crate::tgusermanager::TgManagerCommand;
 use derive_more::From;
 use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::Arc;
 use teloxide::types::*;
 use teloxide::{
     dispatching::dialogue::InMemStorage, net::Download, prelude::*, types::File as TgFile,
@@ -19,7 +20,7 @@ use teloxide::{
 };
 use thiserror::Error;
 use tokio::fs::File;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 #[cfg(feature = "telegram")]
 #[tokio::main]
@@ -52,6 +53,21 @@ enum FileConvertError {
     /// Io error while writing file
     #[error("An I/O error: {0}")]
     Io(#[source] std::io::Error),
+}
+
+/// Possible error while receiving a file
+#[cfg(feature = "telegram")]
+#[derive(Debug, Error, From)]
+enum UserManagerError {
+    /// Manager didn't respond
+    #[error("Couldn't request user: {0}")]
+    Request(String),
+}
+
+use tokio::sync::mpsc::Sender;
+
+struct ManagerHandle<T> {
+    tx: Sender<T>,
 }
 
 #[derive(BotCommands, Clone, Debug)]
@@ -88,7 +104,10 @@ async fn command_handler(
     _me: teloxide::types::Me,
     msg: Message,
     cmd: Command,
+    manager_handle: Arc<ManagerHandle<TgManagerCommand>>,
 ) -> HandlerResult {
+    let tx = &manager_handle.tx;
+
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
@@ -113,34 +132,57 @@ async fn command_handler(
                 .await?
         }
         Command::NewAccount { account } => {
-            let mut user = User::new(msg.chat.id.0, &None);
-            user.new_account(account);
-            bot.send_message(msg.chat.id, "Account added".to_string())
-                .await?
+            let (response_tx, response_rx) = oneshot::channel();
+
+            tx.send(TgManagerCommand::Get {
+                user_id: msg.chat.id.0,
+                reply_to: response_tx,
+            })
+            .await?;
+
+            if let Ok(mut user) = response_rx.await {
+                user.new_account(account);
+                bot.send_message(msg.chat.id, "Account added".to_string())
+                    .await?
+            } else {
+                bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
+                    .await?
+            }
         }
         Command::Accounts => {
-            let user = User::new(msg.chat.id.0, &None);
+            let (response_tx, response_rx) = oneshot::channel();
 
-            let list = |expense_set: &HashSet<String>| {
-                let mut sorted_expenses: Vec<String> = expense_set
-                    .iter()
-                    .filter(|s| s.starts_with("Expenses:"))
-                    .map(|s| s.trim_start_matches("Expenses:").to_owned())
-                    .collect();
+            tx.send(TgManagerCommand::Get {
+                user_id: msg.chat.id.0,
+                reply_to: response_tx,
+            })
+            .await?;
 
-                sorted_expenses.sort();
+            if let Ok(user) = response_rx.await {
+                let list = |expense_set: &HashSet<String>| {
+                    let mut sorted_expenses: Vec<String> = expense_set
+                        .iter()
+                        .filter(|s| s.starts_with("Expenses:"))
+                        .map(|s| s.trim_start_matches("Expenses:").to_owned())
+                        .collect();
 
-                sorted_expenses
-                    .into_iter()
-                    .map(|s| s + "\n")
-                    .collect::<String>()
-            };
+                    sorted_expenses.sort();
 
-            bot.send_message(
-                msg.chat.id,
-                format!("Expense accounts:\n\n{}", list(&user.accounts)),
-            )
-            .await?
+                    sorted_expenses
+                        .into_iter()
+                        .map(|s| s + "\n")
+                        .collect::<String>()
+                };
+
+                bot.send_message(
+                    msg.chat.id,
+                    format!("Expense accounts:\n\n{}", list(&user.accounts)),
+                )
+                .await?
+            } else {
+                bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
+                    .await?
+            }
         }
     };
 
@@ -243,6 +285,7 @@ async fn handle_json(
     dialogue: QIFDialogue,
     msg: Message,
     filename: String, // Available from `State::Idle`.
+    manager_handle: Arc<ManagerHandle<TgManagerCommand>>,
 ) -> HandlerResult {
     log::debug!("JSON state");
     log::info!("File {}", &filename);
@@ -268,7 +311,22 @@ async fn handle_json(
 
     if let Ok(newfile) = download_file(&bot, &file_id).await {
         log::info!("Active user: {:} File received: {:} ", msg.chat.id, newfile);
-        let user = User::new(msg.chat.id.0, &None);
+        let tx = &manager_handle.tx;
+        let (response_tx, response_rx) = oneshot::channel();
+
+        tx.send(TgManagerCommand::Get {
+            user_id: msg.chat.id.0,
+            reply_to: response_tx,
+        })
+        .await?;
+
+        let user = response_rx.await.map_err(|_| {
+            log::warn!("No response for TgUserManager");
+            Box::new(UserManagerError::Request(
+                "No response for TgUserManager".to_string(),
+            ))
+        })?;
+
         let (cat, mut uncat) = auto_cat_items(&newfile, &user);
 
         log::debug!("Categorized item list: {:?}", cat);
@@ -323,6 +381,7 @@ async fn handle_category(
     bot: Bot,
     dialogue: QIFDialogue,
     msg: Message,
+    manager_handle: Arc<ManagerHandle<TgManagerCommand>>,
     (filename, item, items_left, items_processed): (
         String,
         String,
@@ -348,7 +407,22 @@ async fn handle_category(
 
     let version = version.unwrap();
 
-    let user = User::new(msg.chat.id.0, &None);
+    let tx = &manager_handle.tx;
+    let (response_tx, response_rx) = oneshot::channel();
+
+    tx.send(TgManagerCommand::Get {
+        user_id: msg.chat.id.0,
+        reply_to: response_tx,
+    })
+    .await?;
+
+    let user = response_rx.await.map_err(|_| {
+        log::warn!("No response for TgUserManager");
+        Box::new(UserManagerError::Request(
+            "No response for TgUserManager".to_string(),
+        ))
+    })?;
+
     let accounts = user
         .accounts
         .iter()
@@ -461,10 +535,26 @@ async fn handle_qif_ready(
     bot: Bot,
     dialogue: QIFDialogue,
     msg: Message,
+    manager_handle: Arc<ManagerHandle<TgManagerCommand>>,
     (filename, item_categories): (String, HashMap<String, String>), // Available from `State::Ready`.
 ) -> HandlerResult {
     log::debug!("QIF Ready state");
-    let mut user = User::new(msg.chat.id.0, &None);
+    let tx = &manager_handle.tx;
+    let (response_tx, response_rx) = oneshot::channel();
+
+    tx.send(TgManagerCommand::Get {
+        user_id: msg.chat.id.0,
+        reply_to: response_tx,
+    })
+    .await?;
+
+    let mut user = response_rx.await.map_err(|_| {
+        log::warn!("No response for TgUserManager");
+        Box::new(UserManagerError::Request(
+            "No response for TgUserManager".to_string(),
+        ))
+    })?;
+
     let memo: &str = msg.text().unwrap_or("purchase");
 
     let acc = Account::new()
@@ -596,9 +686,11 @@ async fn run() {
     let monitoring_handle = tokio::spawn(async move { monitoring::web_main().await });
 
     log::info!("Starting telegram bot");
-    let (_tx, mut rx) = mpsc::channel(32);
+    let (tx, mut rx) = mpsc::channel(32);
 
     let manager = tokio::spawn(async move { user_manager(&mut rx).await });
+
+    let manager_handle = Arc::new(ManagerHandle { tx });
 
     let bot = Bot::from_env();
 
@@ -648,7 +740,7 @@ async fn run() {
                 .endpoint(callback_handler),
         );
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![InMemStorage::<State>::new()])
+        .dependencies(dptree::deps![InMemStorage::<State>::new(), manager_handle])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
