@@ -441,13 +441,15 @@ async fn handle_category(
         ))
     })?;
 
-    let accounts = user
+    let mut accounts = user
         .accounts
         .iter()
         .filter(|&e| {
             e.starts_with("Expenses:") && e.to_lowercase().contains(&version.to_lowercase())
         })
         .collect::<Vec<_>>();
+
+    accounts.sort_unstable();
 
     if accounts.is_empty() {
         bot.send_message(msg.chat.id, format!("Input subcategory for {}", item))
