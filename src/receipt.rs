@@ -215,4 +215,13 @@ mod receipttest {
         let line = it.to_string();
         assert_eq!(line, "test:1000");
     }
+
+    #[test]
+    fn found_failure() {
+        let line = String::from(
+            r#"[{"_id":"65a4f6feba0916528673fd46","createdAt":"2024-01-15T09:12:30+00:00","ticket":{"document":{"bso":{"buyerPhoneOrAddress":"rayslava+ticketcloud@gmail.com","cashTotalSum":0,"code":4,"creditSum":0,"dateTime":"2024-01-14T21:04:00","ecashTotalSum":1284000,"fiscalDocumentFormatVer":2,"fiscalDocumentNumber":180540,"fiscalDriveNumber":"7284440700355984","fiscalSign":3655795617,"fnsUrl":"www.nalog.gov.ru","internetSign":1,"items":[{"name":"60410127. Билет: Рок-опера Орфей. Театральная Версия, Партер ряд 2 место 26","nds":6,"paymentAgentByProductType":32,"paymentType":1,"price":600000,"providerInn":"502479299687","quantity":1,"sum":600000},{"name":"60410127. Билет: Рок-опера Орфей. Театральная Версия, Партер ряд 2 место 27","nds":6,"paymentAgentByProductType":32,"paymentType":1,"price":600000,"providerInn":"502479299687","quantity":1,"sum":600000},{"name":"Сервисный сбор","nds":1,"ndsSum":14000,"paymentAgentByProductType":32,"paymentType":4,"price":84000,"providerInn":"502479299687","quantity":1,"sum":84000}],"kktRegId":"0002169681012075    ","nds18":14000,"ndsNo":1200000,"operationType":1,"operator":"КАССИР 1","prepaidSum":0,"provisionSum":0,"requestNumber":1680,"retailPlace":"https://ticketscloud.com","retailPlaceAddress":"Россия, город Москва, улица Шарикоподшипниковская, дом 11, строение 9","shiftNumber":63,"taxationType":1,"appliedTaxationType":1,"totalSum":1284000,"user":"ООО \"ТИКЕТСКЛАУД\"","userInn":"7703459471  "}}}}]
+"#,
+        );
+        let _testit: Receipt = serde_json::from_str(&line).unwrap();
+    }
 }
