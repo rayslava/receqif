@@ -297,6 +297,29 @@ fn format_categories(catitems: &HashMap<String, String>) -> String {
         })
 }
 
+/// Fuzzy matcher for "A:B" to "ACategory:BSubCategory"
+fn filter_categories<'a, I>(categories: I, input: &str) -> Vec<&'a String>
+where
+    I: Iterator<Item = &'a String>,
+{
+    let input_parts: Vec<&str> = input.split(':').collect();
+    if input_parts.is_empty() || input_parts.iter().any(|part| part.is_empty()) {
+        return Vec::new();
+    }
+
+    categories
+        .filter(|category| {
+            let cat_parts: Vec<&str> = category.split(':').collect();
+            cat_parts.windows(input_parts.len()).any(|window| {
+                input_parts
+                    .iter()
+                    .zip(window.iter())
+                    .all(|(&inp, &win)| win.starts_with(inp))
+            })
+        })
+        .collect()
+}
+
 async fn handle_json(
     bot: Bot,
     dialogue: QIFDialogue,
@@ -448,13 +471,16 @@ async fn handle_category(
         ))
     })?;
 
-    let mut accounts = user
-        .accounts
-        .iter()
-        .filter(|&e| {
-            e.starts_with("Expenses:") && e.to_lowercase().contains(&version.to_lowercase())
-        })
-        .collect::<Vec<_>>();
+    let mut accounts = if version.contains(':') {
+        filter_categories(user.accounts.iter(), version)
+    } else {
+        user.accounts
+            .iter()
+            .filter(|&e| {
+                e.starts_with("Expenses:") && e.to_lowercase().contains(&version.to_lowercase())
+            })
+            .collect::<Vec<_>>()
+    };
 
     accounts.sort_unstable();
 
@@ -768,4 +794,66 @@ async fn run() {
     drop(manager);
     #[cfg(feature = "monitoring")]
     monitoring_handle.await.unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_filter_categories_basic_matching() {
+        let categories = vec![
+            "seg1:seg2:seg3".to_string(),
+            "seg1:segX:seg3".to_string(),
+            "segA:seg2:segB".to_string(),
+        ];
+
+        let filtered = filter_categories(categories.iter(), "seg1:seg2");
+        assert_eq!(filtered, vec![&categories[0]]);
+        let filtered = filter_categories(categories.iter(), "segX:seg3");
+        assert_eq!(filtered, vec![&categories[1]]);
+    }
+
+    #[test]
+    fn test_filter_categories_partial_match() {
+        let categories = vec![
+            "seg1:seg2:seg3".to_string(),
+            "seg1:seg2X:seg3".to_string(),
+            "seg1:seg2".to_string(),
+        ];
+
+        let filtered = filter_categories(categories.iter(), "seg1:seg2");
+        assert_eq!(
+            filtered,
+            vec![&categories[0], &categories[1], &categories[2]]
+        );
+    }
+
+    #[test]
+    fn test_filter_categories_empty_input() {
+        let categories = vec!["seg1:seg2:seg3".to_string(), "seg4:seg5:seg6".to_string()];
+
+        let filtered = filter_categories(categories.iter(), "");
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn test_filter_categories_no_match() {
+        let categories = vec!["seg1:seg2:seg3".to_string(), "seg4:seg5:seg6".to_string()];
+
+        let filtered = filter_categories(categories.iter(), "segX:segY");
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn test_filter_categories_single_segment_input() {
+        let categories = vec![
+            "seg1:seg2:seg3".to_string(),
+            "seg1:seg4:seg5".to_string(),
+            "segX:segY:segZ".to_string(),
+        ];
+
+        let filtered = filter_categories(categories.iter(), "seg1");
+        assert_eq!(filtered, vec![&categories[0], &categories[1]]);
+    }
 }
