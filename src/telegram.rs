@@ -132,21 +132,28 @@ async fn command_handler(
                 .await?
         }
         Command::NewAccount { account } => {
-            let (response_tx, response_rx) = oneshot::channel();
+            let acc_to_add = account.trim();
 
-            tx.send(TgManagerCommand::Get {
-                user_id: msg.chat.id.0,
-                reply_to: response_tx,
-            })
-            .await?;
-
-            if let Ok(mut user) = response_rx.await {
-                user.new_account(account);
-                bot.send_message(msg.chat.id, "Account added".to_string())
+            if acc_to_add.is_empty() {
+                bot.send_message(msg.chat.id, "Please enter new account name".to_string())
                     .await?
             } else {
-                bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
-                    .await?
+                let (response_tx, response_rx) = oneshot::channel();
+
+                tx.send(TgManagerCommand::Get {
+                    user_id: msg.chat.id.0,
+                    reply_to: response_tx,
+                })
+                .await?;
+
+                if let Ok(mut user) = response_rx.await {
+                    user.new_account(String::from(acc_to_add));
+                    bot.send_message(msg.chat.id, "Account added".to_string())
+                        .await?
+                } else {
+                    bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
+                        .await?
+                }
             }
         }
         Command::Accounts => {
