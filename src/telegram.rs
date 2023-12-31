@@ -127,6 +127,7 @@ async fn command_handler(
                 .await?
         }
         Command::Cancel => {
+            log::info!("Reset requested");
             dialogue.update(State::Idle).await?;
             bot.send_message(msg.chat.id, "Dialogue state reset".to_string())
                 .await?
@@ -135,7 +136,8 @@ async fn command_handler(
             let acc_to_add = account.trim();
 
             if acc_to_add.is_empty() {
-                bot.send_message(msg.chat.id, "Please enter new account name".to_string())
+                log::warn!("/newaccount executed without account name");
+                bot.send_message(msg.chat.id, "No account name provided".to_string())
                     .await?
             } else {
                 let (response_tx, response_rx) = oneshot::channel();
@@ -151,6 +153,7 @@ async fn command_handler(
                     bot.send_message(msg.chat.id, "Account added".to_string())
                         .await?
                 } else {
+                    log::error!("Request for unknown userid {}", msg.chat.id.0);
                     bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
                         .await?
                 }
@@ -187,6 +190,7 @@ async fn command_handler(
                 )
                 .await?
             } else {
+                log::error!("Request for unknown userid {}", msg.chat.id.0);
                 bot.send_message(msg.chat.id, "Can't find the requested user".to_string())
                     .await?
             }
