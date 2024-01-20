@@ -313,7 +313,8 @@ where
 
     categories
         .filter(|category| {
-            let cat_parts: Vec<&str> = category.split(':').collect();
+            let cat = category.to_lowercase();
+            let cat_parts: Vec<&str> = cat.split(':').collect();
             cat_parts.windows(input_parts.len()).any(|window| {
                 input_parts
                     .iter()
@@ -476,7 +477,7 @@ async fn handle_category(
     })?;
 
     let mut accounts = if version.contains(':') {
-        filter_categories(user.accounts.iter(), version)
+        filter_categories(user.accounts.iter(), &version.to_lowercase())
     } else {
         user.accounts
             .iter()
