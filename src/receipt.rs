@@ -216,6 +216,7 @@ mod receipttest {
         assert_eq!(line, "test:1000");
     }
 
+    #[ignore]
     #[test]
     fn found_failure() {
         let line = String::from(

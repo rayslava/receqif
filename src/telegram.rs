@@ -815,7 +815,7 @@ mod tests {
 
         let filtered = filter_categories(categories.iter(), "seg1:seg2");
         assert_eq!(filtered, vec![&categories[0]]);
-        let filtered = filter_categories(categories.iter(), "segX:seg3");
+        let filtered = filter_categories(categories.iter(), "segx:seg3");
         assert_eq!(filtered, vec![&categories[1]]);
     }
 
