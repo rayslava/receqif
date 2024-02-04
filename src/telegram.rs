@@ -291,12 +291,22 @@ async fn handle_idle(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerRe
     Ok(())
 }
 
+/// List all the items' categories when the all the ticket is processed
 fn format_categories(catitems: &HashMap<String, String>) -> String {
     catitems
         .iter()
-        .fold(String::new(), |mut acc, (item, category)| {
+        .enumerate()
+        .fold(String::new(), |mut acc, (index, (item, category))| {
             use std::fmt::Write;
-            writeln!(&mut acc, "{}: {}", item, category).unwrap();
+            writeln!(
+                &mut acc,
+                "{}. [{}: {}](/edit_{})",
+                index + 1,
+                item,
+                category,
+                item
+            )
+            .unwrap();
             acc
         })
 }
