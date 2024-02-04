@@ -14,6 +14,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use teloxide::types::*;
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use teloxide::{
     dispatching::dialogue::InMemStorage, net::Download, prelude::*, types::File as TgFile,
     utils::command::BotCommands, Bot, DownloadError, RequestError,
@@ -311,6 +312,26 @@ fn format_categories(catitems: &HashMap<String, String>) -> String {
         })
 }
 
+fn create_categories_keyboard(catitems: &HashMap<String, String>) -> InlineKeyboardMarkup {
+    let mut keyboard = InlineKeyboardMarkup::default(); // Use default to initialize
+    let mut buttons = Vec::new();
+
+    for (index, (item, category)) in catitems.iter().enumerate() {
+        let button_text = format!("{}. {}", index + 1, category);
+        let callback_data = format!("edit_{}", item); // Assuming `item` is a unique identifier
+
+        // Create a button and push it to the row
+        let button = InlineKeyboardButton::callback(button_text, callback_data);
+        buttons.push(button); // Add button to the current row
+
+        // Assuming you want each button in its own row for simplicity
+        keyboard = keyboard.append_row(buttons.clone());
+        buttons.clear(); // Clear the vector for the next iteration
+    }
+
+    keyboard
+}
+
 /// Fuzzy matcher for "A:B" to "ACategory:BSubCategory"
 fn filter_categories<'a, I>(categories: I, input: &str) -> Vec<&'a String>
 where
@@ -391,12 +412,11 @@ async fn handle_json(
             log::info!("Automatically categorized");
             bot.send_message(
                 msg.chat.id,
-                format!(
-                    "Items are categorized and categories are updated:\n\n{}",
-                    format_categories(&cat)
-                ),
+                format!("Items are categorized and categories are updated"),
             )
+            .reply_markup(create_categories_keyboard(&cat))
             .await?;
+
             bot.send_message(
                 msg.chat.id,
                 "All the items were categorized automatically\nEnter the memo line".to_string(),
@@ -667,6 +687,16 @@ async fn handle_qif_ready(
 
 async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> HandlerResult {
     if let Some(version) = q.data {
+        if version.starts_with("edit_") {
+            let item_id = version.strip_prefix("edit_").unwrap(); // Extract the item ID or number
+
+            // Process the selection, e.g., by updating the dialogue state or responding to the user
+            let response_message = format!("Editing item {}", item_id);
+            if let Some(chat_id) = q.message.clone().and_then(|msg| Some(msg.chat.id)) {
+                bot.send_message(chat_id, response_message).await?;
+            }
+        }
+
         let text = format!("You chose: {}", version);
 
         match q.message {
@@ -709,12 +739,11 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                                 .await?;
                             bot.send_message(
                                 chat.id,
-                                format!(
-                                    "Items are categorized and categories are updated:\n\n{}",
-                                    format_categories(&items_processed)
-                                ),
+                                format!("Items are categorized and categories are updated"),
                             )
+                            .reply_markup(create_categories_keyboard(&items_processed))
                             .await?;
+
                             bot.send_message(chat.id, "Enter the memo line".to_string())
                                 .await?;
                             dialogue
