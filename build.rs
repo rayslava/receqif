@@ -13,6 +13,9 @@ fn main() {
     #[cfg(feature = "tv")]
     {
         println!("cargo:rerun-if-changed=extern/ui.cpp");
+        println!("cargo:rerun-if-changed=extern/app.cpp");
+        println!("cargo:rerun-if-changed=extern/itemview.cpp");
+        println!("cargo:rerun-if-changed=extern/itemwindow.cpp");
         println!("cargo:rerun-if-changed=extern/tvision");
 
         Command::new("cmake")
@@ -40,6 +43,9 @@ fn main() {
         Build::new()
             .cpp(true)
             .file("extern/ui.cpp")
+            .file("extern/itemview.cpp")
+            .file("extern/itemwindow.cpp")
+            .file("extern/app.cpp")
             .flag("-Wno-unknown-pragmas")
             .flag("-Wno-reorder")
             .flag("-Wno-extra")
