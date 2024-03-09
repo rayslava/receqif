@@ -13,11 +13,13 @@ use derive_more::From;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
-use teloxide::types::*;
-use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+use teloxide::types::{
+    InlineKeyboardButton, InlineKeyboardButtonKind, InlineKeyboardMarkup, InputFile, MediaKind,
+    MessageKind, ReplyMarkup,
+};
 use teloxide::{
     dispatching::dialogue::InMemStorage, net::Download, prelude::*, types::File as TgFile,
-    utils::command::BotCommands, Bot, DownloadError, RequestError,
+    utils::command::BotCommands, DownloadError, RequestError,
 };
 use thiserror::Error;
 use tokio::fs::File;
