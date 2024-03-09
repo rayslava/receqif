@@ -102,6 +102,78 @@ pub fn get_category(item: &str, storage: &mut CatStats, accounts: &HashSet<Strin
     }
 }
 
+pub struct LineFilter<F>
+where
+    F: Fn(&str) -> &str,
+{
+    filter: F,
+}
+
+impl LineFilter<fn(&str) -> &str> {
+    pub fn new() -> Self {
+        Self {
+            filter: |input| input,
+        }
+    }
+}
+
+impl<F> LineFilter<F>
+where
+    F: Fn(&str) -> &str,
+{
+    pub fn numfilter(self) -> LineFilter<impl Fn(&str) -> &str> {
+        LineFilter {
+            filter: move |input| {
+                let intermediate = (self.filter)(input);
+                intermediate
+                    .trim_start()
+                    .trim_start_matches(char::is_numeric)
+                    .trim_start()
+            },
+        }
+    }
+
+    pub fn perekrestok_filter(self) -> LineFilter<impl Fn(&str) -> &str> {
+        LineFilter {
+            filter: move |input| {
+                let intermediate = (self.filter)(input);
+                intermediate
+                    .trim_start()
+                    .trim_start_matches(char::is_numeric)
+                    .trim_start_matches(['*', ':', ' '])
+                    .trim_start()
+            },
+        }
+    }
+
+    pub fn trim_units_from_end(self) -> LineFilter<impl Fn(&str) -> &str> {
+        LineFilter {
+            filter: move |input| {
+                let intermediate = (self.filter)(input);
+                let units = ["кг", "г", "мл", "л"];
+
+                let mut trimmed = intermediate;
+
+                for unit in &units {
+                    if trimmed.ends_with(unit) {
+                        trimmed = trimmed.trim_end_matches(unit).trim_end();
+                        break;
+                    }
+                }
+
+                // Trim any numeric characters at the end.
+                trimmed = trimmed.trim_end_matches(char::is_numeric).trim_end();
+
+                trimmed
+            },
+        }
+    }
+
+    pub fn build(self) -> impl Fn(&str) -> &str {
+        self.filter
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,5 +206,71 @@ mod tests {
         assert_eq!(stats[0].hits, 1);
         let topcat = get_top_category("item", &cm).unwrap();
         assert_eq!(topcat, "category");
+    }
+
+    #[test]
+    fn test_new() {
+        let filter = LineFilter::new();
+        assert_eq!(filter.build()("Hello"), "Hello");
+    }
+
+    #[test]
+    fn test_numfilter() {
+        let filter = LineFilter::new().numfilter();
+        assert_eq!(filter.build()("123Hello"), "Hello");
+    }
+
+    #[test]
+    fn test_perekrestok_filter() {
+        let filter = LineFilter::new().perekrestok_filter();
+        assert_eq!(filter.build()("123: *Hello"), "Hello");
+    }
+
+    #[test]
+    fn test_chaining() {
+        let filter = LineFilter::new().numfilter().perekrestok_filter();
+        assert_eq!(filter.build()("123: *Hello"), "Hello");
+    }
+
+    #[test]
+    fn test_trim_no_unit() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Apple Juice"), "Apple Juice");
+    }
+
+    #[test]
+    fn test_trim_kg() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Oranges 2кг"), "Oranges");
+    }
+
+    #[test]
+    fn test_trim_g() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Salt 500 г"), "Salt");
+    }
+
+    #[test]
+    fn test_trim_ml() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Water 150мл"), "Water");
+    }
+
+    #[test]
+    fn test_trim_l() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Milk 2 л"), "Milk");
+    }
+
+    #[test]
+    fn test_trim_multiple_spaces() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Honey   100  г"), "Honey");
+    }
+
+    #[test]
+    fn test_trim_with_other_text() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(filter("Bread 300г Extra"), "Bread 300г Extra");
     }
 }
