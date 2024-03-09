@@ -127,4 +127,14 @@ mod tests {
         assert_eq!(result[0].name, "СИДР 0.5 MAGNERS APP");
         assert_eq!(result[0].sum, 17713);
     }
+
+    #[test]
+    fn test_read_file() {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("tests/resources/test.json");
+        let full_path = p.to_string_lossy();
+
+        let result = read_file(&full_path);
+        assert!(!result.items.is_empty());
+    }
 }
