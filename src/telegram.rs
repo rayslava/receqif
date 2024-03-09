@@ -292,6 +292,7 @@ async fn handle_idle(bot: Bot, dialogue: QIFDialogue, msg: Message) -> HandlerRe
     Ok(())
 }
 
+/*
 /// List all the items' categories when the all the ticket is processed
 fn format_categories(catitems: &HashMap<String, String>) -> String {
     catitems
@@ -311,7 +312,9 @@ fn format_categories(catitems: &HashMap<String, String>) -> String {
             acc
         })
 }
+ */
 
+/// TODO: Fix the item as unique id. Need to add an identifier
 fn create_categories_keyboard(catitems: &HashMap<String, String>) -> InlineKeyboardMarkup {
     let mut keyboard = InlineKeyboardMarkup::default(); // Use default to initialize
     let mut buttons = Vec::new();
