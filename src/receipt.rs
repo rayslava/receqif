@@ -54,7 +54,7 @@ struct Ticket {
 
 mod custom_date_format {
     use chrono::{DateTime, NaiveDateTime, Utc};
-    use serde::{self, Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer};
 
     /// The format seems alike to RFC3339 but is not compliant
     const FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
