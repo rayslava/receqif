@@ -316,8 +316,8 @@ fn create_categories_keyboard(catitems: &HashMap<String, String>) -> InlineKeybo
     let mut keyboard = InlineKeyboardMarkup::default(); // Use default to initialize
     let mut buttons = Vec::new();
 
-    for (index, (item, category)) in catitems.iter().enumerate() {
-        let button_text = format!("{}. {}", index + 1, category);
+    for (item, category) in catitems.iter() {
+        let button_text = format!("{}: {}", item, category);
         let callback_data = format!("edit_{}", item); // Assuming `item` is a unique identifier
 
         // Create a button and push it to the row
@@ -412,7 +412,7 @@ async fn handle_json(
             log::info!("Automatically categorized");
             bot.send_message(
                 msg.chat.id,
-                format!("Items are categorized and categories are updated"),
+                "Items are categorized and categories are updated".to_string(),
             )
             .reply_markup(create_categories_keyboard(&cat))
             .await?;
@@ -615,10 +615,6 @@ async fn handle_subcategory(
     Ok(())
 }
 
-fn nofilter(line: &str) -> &str {
-    line
-}
-
 async fn handle_qif_ready(
     bot: Bot,
     dialogue: QIFDialogue,
@@ -671,7 +667,13 @@ async fn handle_qif_ready(
         item_categories.get(item).unwrap().to_owned()
     };
 
-    let t = convert(&filename, memo, &mut user, &acc, nofilter, cat).unwrap();
+    let filter = categories::LineFilter::new()
+        .numfilter()
+        .perekrestok_filter()
+        .trim_units_from_end()
+        .build();
+
+    let t = convert(&filename, memo, &mut user, &acc, filter, cat).unwrap();
     let qif = InputFile::memory(format!("{}{}", acc, t).into_bytes());
     bot.send_message(msg.chat.id, "QIF is ready.").await?;
     bot.send_document(msg.chat.id, qif).await?;
@@ -690,9 +692,15 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
         if version.starts_with("edit_") {
             let item_id = version.strip_prefix("edit_").unwrap(); // Extract the item ID or number
 
+            dialogue
+                .update(State::NewJson {
+                    filename: String::new(),
+                })
+                .await?;
+
             // Process the selection, e.g., by updating the dialogue state or responding to the user
             let response_message = format!("Editing item {}", item_id);
-            if let Some(chat_id) = q.message.clone().and_then(|msg| Some(msg.chat.id)) {
+            if let Some(chat_id) = q.message.clone().map(|msg| msg.chat.id) {
                 bot.send_message(chat_id, response_message).await?;
             }
         }
@@ -739,7 +747,7 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                                 .await?;
                             bot.send_message(
                                 chat.id,
-                                format!("Items are categorized and categories are updated"),
+                                "Items are categorized and categories are updated".to_string(),
                             )
                             .reply_markup(create_categories_keyboard(&items_processed))
                             .await?;
