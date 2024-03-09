@@ -41,7 +41,9 @@ pub enum UserError {
 
 impl Drop for User {
     fn drop(&mut self) {
-        self.save_data().unwrap();
+        self.save_data().unwrap_or_else(|err| {
+            log::error!("Can't save database for uid {} due to {:?}", self.uid, err)
+        });
     }
 }
 
