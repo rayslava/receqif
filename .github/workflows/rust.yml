@@ -52,6 +52,8 @@ jobs:
         with:
           command: test
           args: --release --features monitoring
+        env:
+          RUST_BACKTRACE: 1
 
       - name: Collect test coverage
         uses: actions-rs/tarpaulin@v0.1
