@@ -29,14 +29,6 @@ struct Cli {
     #[structopt(long, default_value = "New")]
     memo: String,
 
-    /// Add filter with cutting id from every item memo beginning
-    #[structopt(long)]
-    numfilt: bool,
-
-    /// Add filter with cutting "3*:" and numbers from the line (e.g. Perekrestok)
-    #[structopt(long)]
-    perfilt: bool,
-
     /// Run telegram bot
     #[cfg(feature = "telegram")]
     #[structopt(short, long)]
@@ -58,24 +50,6 @@ struct Cli {
     /// Account type
     #[structopt(long, parse(try_from_str), default_value = "Cash")]
     account_type: AccountType,
-}
-
-fn numfilter(line: &str) -> &str {
-    line.trim_start()
-        .trim_start_matches(char::is_numeric)
-        .trim_start()
-}
-
-fn perekrestok_filter(line: &str) -> &str {
-    numfilter(
-        line.trim_start()
-            .trim_start_matches(char::is_numeric)
-            .trim_start_matches(['*', ':', ' ']),
-    )
-}
-
-fn nofilter(line: &str) -> &str {
-    line
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -104,12 +78,11 @@ fn main() {
         return;
     }
 
-    let filter = if args.numfilt { numfilter } else { nofilter };
-    let filter = if args.perfilt {
-        perekrestok_filter
-    } else {
-        filter
-    };
+    let filter = categories::LineFilter::new()
+        .numfilter()
+        .perekrestok_filter()
+        .trim_units_from_end()
+        .build();
 
     // If program is used as command-line tool
     let acc = Account::new()
@@ -118,10 +91,14 @@ fn main() {
         .build();
 
     if let Some(filename) = &args.filename {
+        let cat_filter = categories::LineFilter::new()
+            .numfilter()
+            .perekrestok_filter()
+            .build();
         let cat = &|item: &str,
                     stats: &mut categories::CatStats,
                     acc: &HashSet<String>|
-         -> String { categories::get_category(filter(item), stats, acc) };
+         -> String { categories::get_category(cat_filter(item), stats, acc) };
         let t = convert::convert(filename, &args.memo, &mut user, &acc, filter, cat).unwrap();
         print!("{}", acc);
         println!("{}", t);
