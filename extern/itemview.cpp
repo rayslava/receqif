@@ -58,7 +58,7 @@ int TItemViewer::findSel(TPoint p) {
 
 TItemViewer::TItemViewer(const TRect &bounds, TScrollBar *aHScrollBar,
                          TScrollBar *aVScrollBar, const ViewedColumn &col)
-    : TScroller(bounds, aHScrollBar, aVScrollBar) {
+    : TScroller(bounds, aHScrollBar, aVScrollBar), column(col) {
   if (col == ViewedColumn::Categories)
     growMode = gfGrowHiX | gfGrowHiY;
   else

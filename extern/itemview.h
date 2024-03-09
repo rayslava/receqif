@@ -69,11 +69,13 @@ class TItemViewer : public TScroller {
 public:
   enum class ViewedColumn { Items, Categories, Weights };
 
+  ViewedColumn column;
   char *fileName;
   TCollection *fileLines;
   Boolean isValid;
   TItemViewer(const TRect &bounds, TScrollBar *aHScrollBar,
-              TScrollBar *aVScrollBar, const ViewedColumn &col);
+              TScrollBar *aVScrollBar,
+              const ViewedColumn &col = ViewedColumn::Items);
   ~TItemViewer();
   TItemViewer(StreamableInit) : TScroller(streamableInit){};
   void draw();
