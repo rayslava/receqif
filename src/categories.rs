@@ -150,19 +150,32 @@ where
         LineFilter {
             filter: move |input| {
                 let intermediate = (self.filter)(input);
-                let units = ["кг", "г", "мл", "л"];
+                let units = ["кг", "г", "мл", "л", "шт"];
 
                 let mut trimmed = intermediate;
 
-                for unit in &units {
-                    if trimmed.ends_with(unit) {
-                        trimmed = trimmed.trim_end_matches(unit).trim_end();
+                loop {
+                    let original = trimmed;
+                    for unit in &units {
+                        if trimmed.ends_with(unit) {
+                            trimmed = trimmed
+                                .trim_end_matches(unit)
+                                .trim_end_matches(',')
+                                .trim_end();
+                        }
+                    }
+
+                    // Trim any numeric characters and commas at the end.
+                    trimmed = trimmed
+                        .trim_end_matches(char::is_numeric)
+                        .trim_end_matches(',')
+                        .trim_end();
+
+                    // If no changes were made in this iteration, break the loop.
+                    if trimmed == original {
                         break;
                     }
                 }
-
-                // Trim any numeric characters at the end.
-                trimmed = trimmed.trim_end_matches(char::is_numeric).trim_end();
 
                 trimmed
             },
@@ -272,5 +285,14 @@ mod tests {
     fn test_trim_with_other_text() {
         let filter = LineFilter::new().trim_units_from_end().build();
         assert_eq!(filter("Bread 300г Extra"), "Bread 300г Extra");
+    }
+
+    #[test]
+    fn test_trim_multiple_units() {
+        let filter = LineFilter::new().trim_units_from_end().build();
+        assert_eq!(
+            filter(r#"Сыр "Фитнес" безлактозный, 200г,шт"#),
+            r#"Сыр "Фитнес" безлактозный"#
+        );
     }
 }
