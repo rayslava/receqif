@@ -340,6 +340,7 @@ fn create_categories_keyboard(catitems: &HashMap<String, String>) -> InlineKeybo
 
         let button_text = format!("{}: {}", item, shortened_category);
         let callback_data = format!("edit_{}_{}", item, index);
+        log::info!("Text: '{}'  Data: '{}'", button_text, callback_data);
 
         let button = InlineKeyboardButton::callback(button_text, callback_data);
         keyboard = keyboard.append_row(vec![button]);
@@ -704,6 +705,7 @@ async fn handle_qif_ready(
 
 async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> HandlerResult {
     if let Some(data) = q.data {
+        log::info!("Callback with data: '{}'", data);
         if data.starts_with("edit_") {
             let data = data.strip_prefix("edit_").unwrap();
             let parts: Vec<&str> = data.split('_').collect();
