@@ -711,23 +711,43 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
 
             // Process the selection, e.g., by updating the dialogue state or responding to the user
             let response_message = format!("Editing item {}", item_id);
-            if let Some(chat_id) = q.message.clone().and_then(|msg| Some(msg.chat.id)) {
+            if let Some(chat_id) = q.message.clone().map(|msg| msg.chat.id) {
                 bot.send_message(chat_id, response_message).await?;
-            }
 
-            let state = dialogue.get().await?;
-            if let Some(data) = state {
-                log::info!("State: {}", data);
-                if let State::Ready {
-                    filename: _,
-                    item_categories,
-                } = data
-                {
-                    for (index, (key, value)) in item_categories.iter().enumerate() {
-                        log::debug!("Index: {}, Key: {}, Value: {}", index, key, value);
+                let state = dialogue.get().await?;
+                if let Some(data) = state {
+                    log::info!("State: {}", data);
+                    if let State::Ready {
+                        filename,
+                        item_categories,
+                    } = data
+                    {
+                        let mut item_to_edit = None;
                         let req_item: usize = item_id.parse().unwrap_or_default();
-                        if index == req_item {
-                            log::info!("Editing item {}:{}", key, value);
+                        for (index, (key, value)) in item_categories.iter().enumerate() {
+                            log::debug!("Index: {}, Key: {}, Value: {}", index, key, value);
+                            if index == req_item {
+                                log::info!("Editing item {}:{}", key, value);
+                                item_to_edit = Some(key.clone());
+                            }
+                        }
+
+                        if let Some(key) = item_to_edit {
+                            bot.send_message(
+                                chat_id,
+                                format!("Input category to search for {}", &key),
+                            )
+                            .await?;
+                            dialogue
+                                .update(State::CategorySelect {
+                                    filename,
+                                    item: key,
+                                    items_left: vec![],
+                                    items_processed: item_categories,
+                                })
+                                .await?;
+                        } else {
+                            log::error!("Attempt to edit non-existent item");
                         }
                     }
                 }
@@ -776,7 +796,7 @@ async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> 
                                 .await?;
                             bot.send_message(
                                 chat.id,
-                                format!("Items are categorized and categories are updated"),
+                                "Items are categorized and categories are updated".to_string(),
                             )
                             .reply_markup(create_categories_keyboard(&items_processed))
                             .await?;
