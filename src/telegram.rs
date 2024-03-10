@@ -339,7 +339,8 @@ fn create_categories_keyboard(catitems: &HashMap<String, String>) -> InlineKeybo
         };
 
         let button_text = format!("{}: {}", item, shortened_category);
-        let callback_data = format!("edit_{}_{}", item, index);
+        // Using only the index as callback data to avoid exceeding the maximum length
+        let callback_data = format!("edit_{}", index);
         log::info!("Text: '{}'  Data: '{}'", button_text, callback_data);
 
         let button = InlineKeyboardButton::callback(button_text, callback_data);
@@ -704,65 +705,101 @@ async fn handle_qif_ready(
 }
 
 async fn callback_handler(q: CallbackQuery, bot: Bot, dialogue: QIFDialogue) -> HandlerResult {
-    if let Some(data) = q.data {
-        log::info!("Callback with data: '{}'", data);
-        if data.starts_with("edit_") {
-            let data = data.strip_prefix("edit_").unwrap();
-            let parts: Vec<&str> = data.split('_').collect();
+    if let Some(version) = q.data {
+        if version.starts_with("edit_") {
+            let item_id = version.strip_prefix("edit_").unwrap(); // Extract the item ID or number
 
-            if parts.len() == 2 {
-                let item = parts[0].to_string(); // Convert item to String
-                let index = parts[1]; // Index is parsed but not used further in this snippet
+            // Process the selection, e.g., by updating the dialogue state or responding to the user
+            let response_message = format!("Editing item {}", item_id);
+            if let Some(chat_id) = q.message.clone().and_then(|msg| Some(msg.chat.id)) {
+                bot.send_message(chat_id, response_message).await?;
+            }
 
-                dialogue
-                    .update(State::NewJson {
-                        filename: String::new(),
-                    })
-                    .await?;
-
-                let response_message = format!("Editing item {}: {}", item, index);
-                if let Some(chat_id) = q.message.clone().map(|msg| msg.chat.id) {
-                    bot.send_message(chat_id, response_message).await?;
+            let state = dialogue.get().await?;
+            if let Some(data) = state {
+                log::info!("State: {}", data);
+                if let State::Ready {
+                    filename: _,
+                    item_categories,
+                } = data
+                {
+                    for (index, (key, value)) in item_categories.iter().enumerate() {
+                        log::debug!("Index: {}, Key: {}, Value: {}", index, key, value);
+                        let req_item: usize = item_id.parse().unwrap_or_default();
+                        if index == req_item {
+                            log::info!("Editing item {}:{}", key, value);
+                        }
+                    }
                 }
             }
         }
 
-        let text = format!("You chose: {}", data);
-        if let Some(Message { id, chat, .. }) = q.message {
-            bot.edit_message_text(chat.id, id, text.clone()).await?;
-            let state = dialogue.get().await?;
-            if let Some(State::SubCategorySelect {
-                filename,
-                item,
-                category: _,
-                items_left,
-                mut items_processed,
-            }) = state
-            {
-                items_processed.insert(item, data.to_string());
-                if items_left.is_empty() {
-                    bot.send_message(chat.id, "This was the last item!").await?;
-                    bot.send_message(chat.id, "Items are categorized, and categories are updated")
+        let text = format!("You chose: {}", version);
+
+        match q.message {
+            Some(Message { id, chat, .. }) => {
+                bot.edit_message_text(chat.id, id, text.clone()).await?;
+                let state = dialogue.get().await?;
+                if let Some(data) = state {
+                    log::info!("Data: {}", data);
+                    if let State::SubCategorySelect {
+                        filename,
+                        item,
+                        category: _,
+                        mut items_left,
+                        mut items_processed,
+                    } = data
+                    {
+                        log::info!("SubCategory match!");
+                        bot.send_message(
+                            chat.id,
+                            format!("Item {} is ready for caterogy {}", item, version),
+                        )
                         .await?;
-                    // Call create_categories_keyboard here with items_processed to generate the keyboard
-                    let keyboard = create_categories_keyboard(&items_processed);
-                    bot.send_message(chat.id, "Enter the memo line")
-                        .reply_markup(keyboard)
-                        .await?;
-                    dialogue
-                        .update(State::Ready {
-                            filename,
-                            item_categories: items_processed,
-                        })
-                        .await?;
-                } else {
-                    log::warn!("Items left when callback called");
+                        items_processed.insert(item, version);
+                        if let Some(newitem) = items_left.pop() {
+                            bot.send_message(
+                                chat.id,
+                                format!("Input category to search for {}", newitem),
+                            )
+                            .await?;
+                            dialogue
+                                .update(State::CategorySelect {
+                                    filename,
+                                    item: newitem,
+                                    items_left,
+                                    items_processed,
+                                })
+                                .await?;
+                        } else {
+                            bot.send_message(chat.id, "This was the last item!".to_string())
+                                .await?;
+                            bot.send_message(
+                                chat.id,
+                                format!("Items are categorized and categories are updated"),
+                            )
+                            .reply_markup(create_categories_keyboard(&items_processed))
+                            .await?;
+
+                            bot.send_message(chat.id, "Enter the memo line".to_string())
+                                .await?;
+                            dialogue
+                                .update(State::Ready {
+                                    filename,
+                                    item_categories: items_processed,
+                                })
+                                .await?;
+                        }
+                    } else {
+                        log::info!("No SubCategory match!");
+                    }
                 }
-            } else {
-                log::info!("No SubCategory match!");
             }
-        } else if let Some(id) = q.inline_message_id {
-            bot.edit_message_text_inline(id, text).await?;
+            None => {
+                if let Some(id) = q.inline_message_id {
+                    bot.edit_message_text_inline(id, text).await?;
+                }
+            }
         }
     }
 
